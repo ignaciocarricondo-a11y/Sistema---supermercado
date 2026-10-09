@@ -1,0 +1,34 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function u() { return request.auth.token.email.split('@')[0]; }
+    function yo() { return get(/databases/$(db)/documents/cuentas/$(u())).data; }
+    function principal() { return request.auth != null && get(/databases/$(db)/documents/config/dueno).data.uid == request.auth.uid; }
+    function activo() { return request.auth != null && yo().estado == 'ok' && yo().rango != ''; }
+    function dueno() { return principal() || (activo() && yo().rango == 'Dueño'); }
+    function gestion() { return dueno() || (activo() && yo().permisos.keys().hasAny(['hoy','bus','bol','reg','caj','tra','ing','gas','mer','cli','emp','ctl','chq','sem'])); }
+
+    match /config/dueno {
+      allow get: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+    }
+    match /config/{id} {
+      allow read: if activo() || dueno();
+      allow write: if id != 'dueno' && gestion();
+    }
+    match /cuentas/{id} {
+      allow get: if request.auth != null && id == u();
+      allow read: if activo() || dueno();
+      allow create: if request.auth != null && id == u()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.estado == 'ok'
+        && request.resource.data.permisos.size() == 0
+        && (request.resource.data.rango == '' || (request.resource.data.rango == 'Dueño' && principal()));
+      allow update: if dueno();
+    }
+    match /{col}/{id} {
+      allow read, write: if col != 'cuentas' && col != 'config' && gestion();
+      allow read: if col in ['retiros','adelantos','liquidaciones','personas','empcfg','descuentos','novedades','rangos'] && activo();
+    }
+  }
+}
