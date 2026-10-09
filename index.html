@@ -2,6 +2,7 @@
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Sistema para supermercado</title>
+<link rel="manifest" href="manifest.json"><meta name="theme-color" content="#e60033"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&display=swap">
 <style>
 :root{--bg:#faf5f6;--card:#fff;--tx:#231a1c;--mu:#75676a;--bd:#ecdfe1;--ac:#e60033;--ac2:#ff0052;--ac3:#ff000e;--okc:#0b6e4f;--rd:#b42318;--am:#b7791f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -1268,7 +1269,7 @@ document.addEventListener("click",async e=>{const t=e.target.closest("[data-t],[
 document.addEventListener("input",e=>{if(e.target.type=="file")return;if(e.target.id)keep[e.target.id]=e.target.value});
 document.addEventListener("change",e=>{if(e.target.id=="mvph"){mphoto=e.target.files[0]||null;render();return}if(e.target.id=="tkph"||e.target.id=="tkpg"){const f=e.target.files[0];if(f&&!tley)leerTicket(f);return}if(e.target.dataset&&e.target.dataset.fa){const f=e.target.files[0],q=e.target.dataset.fa.split("|");if(f&&!firmando)subirFirmaDoc(q[0],q[1],f);return}if(e.target.id=="xph"||e.target.id=="xpg"){const f=e.target.files[0];if(f&&!rley)leerRetiro(f);return}if(e.target.id=="yph"){aphoto=e.target.files[0]||null;render();return}if(e.target.id=="fph"){const f=e.target.files[0];if(f&&!firmando)subirFirmado(f);return}if(e.target.id=="bph"||e.target.id=="bpg"){const f=e.target.files[0];if(f&&!leyendo)leerBoleta(f);return}if(e.target.id=="ph"){photo=e.target.files[0]||null;render();return}if(e.target.id){keep[e.target.id]=e.target.value;if(e.target.id=="le"||e.target.id=="lm"){delete keep.ls;["etp","esu","ein"].forEach(k=>delete keep[k])}if(e.target.id=="rgp"){const pz=RANGOS[e.target.value];if(pz){edP={};pz.forEach(k=>edP[k]=true)}}if(e.target.id=="pv"){sel={};nsel={}}if(e.target.id=="cc")FK.forEach(k=>delete keep[k]);if(e.target.id=="qp")registrar();if(e.target.id=="qp"&&e.target.value&&e.target.value!="__n")recordar(e.target.value);if(e.target.id=="ac")acSel={};if(["md","bco","fe","d1","d2","pv","ac","qp","cc","hp","rgp","ymd","lm","le","ls","if","is","ica","itu","cjm","rcd","brc","mcl","mmm","fmv","rmm","lcm","sd1","sd2","svb","sdm","mim","qb","cse","tro","rnd1","rnd2","trb","mvd"].includes(e.target.id)||/^rs\d/.test(e.target.id))render()}});
 (async()=>{
- firebase.initializeApp(FBCFG);const db=firebase.firestore();AUTH=firebase.auth();
+ try{if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js")}catch(e){}firebase.initializeApp(FBCFG);const db=firebase.firestore();AUTH=firebase.auth();
  dl={save:async({filename,data})=>{const b=data instanceof Blob?data:new Blob([data],{type:/\.csv$/.test(filename)?"text/csv;charset=utf-8":"application/octet-stream"}),url=URL.createObjectURL(b),el=document.createElement("a");el.href=url;el.download=filename;document.body.appendChild(el);el.click();el.remove();setTimeout(()=>URL.revokeObjectURL(url),60000)}};assets=null;
  const fu=await new Promise(r=>{const un=AUTH.onAuthStateChanged(u=>{un();r(u)})});
  if(!fu){auOk=true;render();return}
