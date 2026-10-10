@@ -6,7 +6,12 @@ service cloud.firestore {
     function principal() { return request.auth != null && get(/databases/$(db)/documents/config/dueno).data.uid == request.auth.uid; }
     function activo() { return request.auth != null && yo().estado == 'ok' && yo().rango != ''; }
     function dueno() { return principal() || (activo() && yo().rango == 'Dueño'); }
-    function gestion() { return dueno() || (activo() && yo().permisos.keys().hasAny(['hoy','bus','bol','reg','caj','tra','ing','gas','mer','cli','emp','ctl','chq','sem'])); }
+    function tiene(l) { return activo() && yo().permisos.keys().hasAny(l); }
+    function fin() { return dueno() || tiene(['hoy','bus','bol','reg','ing','gas','cli','emp','ctl','chq','sem','cajctl']); }
+    function caja() { return tiene(['caj']); }
+    function depo() { return tiene(['tra','mer']); }
+    function mio() { return 'a_' + u(); }
+    function esMia() { return activo() && (resource.data.empleado == yo().nombre || resource.data.empleado == yo().empleado); }
 
     match /config/dueno {
       allow get: if request.auth != null;
@@ -14,7 +19,7 @@ service cloud.firestore {
     }
     match /config/{id} {
       allow read: if activo() || dueno();
-      allow write: if id != 'dueno' && gestion();
+      allow write: if id != 'dueno' && (fin() || (id == 'diarco' && caja()));
     }
     match /cuentas/{id} {
       allow get: if request.auth != null && id == u();
@@ -27,8 +32,14 @@ service cloud.firestore {
       allow update: if dueno();
     }
     match /{col}/{id} {
-      allow read, write: if col != 'cuentas' && col != 'config' && gestion();
-      allow read: if col in ['retiros','adelantos','liquidaciones','personas','empcfg','descuentos','novedades','rangos'] && activo();
+      allow read, write: if col != 'cuentas' && col != 'config' && fin();
+      allow read: if col in ['cajas','retcaja','retiros','personas','cierresmes'] && caja();
+      allow create: if col in ['cajas','retcaja','ingresos','tarjetas','retiros','diarco','historial'] && caja() && request.resource.data.por == mio();
+      allow update: if col == 'retiros' && caja() && resource.data.por == mio() && resource.data.origen == 'caja';
+      allow read: if col in ['traslados','mermas','envases','proveedores','personas','cierresmes'] && depo();
+      allow create, update: if col in ['traslados','mermas','envases'] && depo();
+      allow create: if col == 'historial' && activo() && request.resource.data.por == mio();
+      allow read: if col in ['retiros','adelantos','liquidaciones','descuentos','novedades'] && esMia();
     }
   }
 }
