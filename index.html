@@ -97,7 +97,7 @@ async function lgnew(){if(lgBusy)return;const n=(keep.lgn||"").trim().replace(/\
  lgBusy=true;lgMsg="Creando usuario…";render();
  try{const c=await AUTH.createUserWithEmailAndPassword(u+DOM,pw);try{localStorage.setItem("cpNom",n)}catch(e){}await crearCuenta(firebase.firestore(),c.user,u,n);location.reload()}catch(e){lgBusy=false;if(AUTH.currentUser)return location.reload();lgMsg=authErr(e);render()}}
 function vMio(){const me=yo(),e=(me&&(me.empleado||me.nombre))||"",m=/^\d{4}-\d{2}$/.test(keep.mim||"")?keep.mim:today().slice(0,7),c=cuentaMes(e,m);
- const fl=(a,f)=>a.map(f).join("")||'<p class="mu">Nada en este mes.</p>',ln=(a,b)=>`<div class="row" style="display:flex;justify-content:space-between;gap:12px"><span>${a}</span><b>${b}</b></div>`;
+ const fl=(a,f)=>a.map(f).join("")||'<p class="mu">Nada en este mes.</p>',ln=(a,b)=>`<div class="row" style="display:flex;justify-content:space-between;gap:12px"><span>${a}</span><b style="white-space:nowrap">${b}</b></div>`;
  return `<div class="card"><h3>Mi cuenta · ${esc(e)}</h3><label>Mes<input id="mim" type="month" value="${m}"></label>
 <p class="mu" style="margin-top:10px">Mercadería que retiraste</p>${fl(c.rs,x=>`<div class="row">${fmt(x.fecha)} · <b>$ ${money(x.monto)}</b> ${esc(x.detalle||"")}</div>`)}
 <p class="mu" style="margin-top:10px">Plata que pediste adelantada</p>${fl(c.as,x=>`<div class="row">${fmt(x.fecha)} · <b>$ ${money(x.monto)}</b> · ${x.medio=="Transferencia"?"por transferencia":"en efectivo"} · ${esc(x.nro||"")}</div>`)}
