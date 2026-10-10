@@ -140,7 +140,7 @@ async function anularCon(a,id,X){
  else if(a=="eanular"){const x=E.find(z=>z.id==id);if(x&&x.origen)return say("Este gasto se cargó desde otra pantalla (Empleados, Cheques, Dueños o un movimiento entre cuentas): anúlalo desde ahí");await colE.doc(id).update({estado:"anulado",...X});await log("Anuló gasto",(x?x.tipo+" $ "+money(x.monto)+" · ":"")+X.motivo)}
  else if(a=="prech"){if(!puede("autorizar"))return;const x=PE.find(z=>z.id==id);await colPE.doc(id).delete();if(x)await log("Rechazó pago en espera",x.proveedor+" $ "+money(x.monto)+" · "+X.motivo)}
  else if(a=="ncanular"){const x=NC.find(z=>z.id==id);await colNC.doc(id).update({estado:"anulada",...X});if(x)await log("Anuló nota de crédito",x.proveedor+" $ "+money(x.monto)+" · "+X.motivo)}
- else if(a=="ranular"||a=="adanular"){const x=(a=="ranular"?RT:AV).find(z=>z.id==id);if(!x)return;if(liqDe(x.empleado,mesDe(x.fecha)))return say("Ese mes ya está liquidado para "+x.empleado+": anula primero la liquidación");
+ else if(a=="ranular"||a=="adanular"){const x=(a=="ranular"?RT:AV).find(z=>z.id==id);if(!x)return;if(x.origen=="caja"&&cierreDe(x.fecha,x.sucursal,x.caja,x.turno))return say("Ese ticket ya está dentro de un cierre de caja: anula primero el cierre");if(liqDe(x.empleado,mesDe(x.fecha)))return say("Ese mes ya está liquidado para "+x.empleado+": anula primero la liquidación");
   await (a=="ranular"?colRT:colAV).doc(id).update({estado:"anulado",...X});if(x.egreso)await colE.doc(x.egreso).update({estado:"anulado",...X});await log(a=="ranular"?"Anuló retiro de mercadería":"Anuló adelanto",x.empleado+" $ "+money(x.monto)+" · "+X.motivo)}
  else if(a=="lqanular"){const q=LQ.find(z=>z.id==id);if(!q)return;const ge=q.egreso&&E.find(z=>z.id==q.egreso);if(ge&&cerrado(ge.fecha))return say(MC);await colLQ.doc(id).update({estado:"anulado",...X});if(q.egreso)await colE.doc(q.egreso).update({estado:"anulado",...X});await log("Anuló liquidación de sueldo",q.empleado+" "+mesTx(q.mes)+" · "+X.motivo)}
  else if(a=="oanular"){const r=await anularOrden(id,X);if(r)return say(r)}
@@ -536,6 +536,14 @@ function vDiarco(){const L=DI.slice(0,15).map(x=>`<div class="row">${fmt(x.fecha
  return `<div class="card"><h3>Crédito en Diarco</h3><p class="mu">Lo que se cobra con el posnet a nombre de Diarco no entra a la caja ni a los bancos: se junta acá como crédito para canjear por mercadería.</p><p style="font-size:17px">Crédito disponible: <b>$ ${money(DIA.saldo||0)}</b></p>
 <label>Fecha del canje<input id="dif" type="date" value="${today()}"></label><label>Importe canjeado por mercadería<input id="dim" type="number" step="0.01" inputmode="decimal"></label><label>Detalle (boleta, qué se trajo)<input id="dix"></label><button class="pri" data-a="dicanje">Guardar canje</button>
 <h3 style="margin-top:14px">Últimos movimientos</h3>${L}</div>`}
+const tkDe=(f,sc,ca,tu)=>RT.filter(x=>x.origen=="caja"&&x.estado!="anulado"&&x.fecha==f&&x.sucursal==sc&&x.caja==ca&&x.turno==tu),tkTurno=(f,sc,ca,tu)=>r2(tkDe(f,sc,ca,tu).reduce((s,x)=>s+x.monto,0));
+async function tkcaja(){const gv=i=>(document.getElementById(i)||{value:""}).value.trim(),{f,sc,ca,tu,cj}=turnoSel(),m=parseFloat(gv("tkm")),e0=gv("tke"),L=[...new Set(noms().concat(emps()))],e=L.find(x=>key(x)==key(e0))||(cajAdm()?empNom(e0):"");
+ if(!e0||!(m>0))return say("Falta el empleado o el importe del ticket");if(!e)return say("Ese empleado no está en la lista: elige uno de los que aparecen o pide a administración que lo cargue");
+ if(!f)return say("Falta la fecha");if(cerrado(f))return say(MC);if(cierreDe(f,sc,ca,tu))return say("Esa caja y turno ya tienen cierre: anula el cierre para agregar tickets");
+ if(liqDe(e,mesDe(f)))return say("Ese mes ya está liquidado para "+e+": avisa a administración");
+ const tp=cfgDe(e).tope;if(tp>0){const ya=cuentaMes(e,mesDe(f)).merc;if(ya+m>tp+0.005&&!puede("autorizar"))return say("Supera el tope mensual de "+e+" ($ "+money(tp)+"; ya lleva $ "+money(ya)+"). Tiene que autorizarlo un responsable")}
+ const n=gv("tkn");await colRT.add({empleado:e,fecha:f,monto:r2(m),detalle:"Ticket en caja"+(n?" N° "+n:""),estado:"ok",por:uid,cargo:miNombre(),creado:Date.now(),origen:"caja",sucursal:sc,caja:ca,turno:tu,cajero:cj});
+ ["tke","tkm","tkn"].forEach(k=>delete keep[k]);await log("Cargó ticket de empleado en caja",e+" $ "+money(m)+" · "+sc+" · "+ca+" · "+tu);say("Ticket de "+e+" guardado ✔ $ "+money(m))}
 const DEN=[20000,10000,2000,1000,500,200,100,50,20,10];let cjSel="";
 const cajAdm=()=>esDueno||puede("cajctl")||puede("ing");
 const billTot=()=>r2(DEN.reduce((s,d,i)=>s+d*(Math.max(0,parseInt(keep["bq"+i])||0)),0)+(Math.max(0,parseFloat(keep.bmon))||0));
@@ -544,17 +552,17 @@ const billTx=x=>x.billetes?DEN.filter(d=>x.billetes[d]).map(d=>x.billetes[d]+" �
 const sumO=o=>r2(Object.values(o||{}).reduce((a,b)=>a+b,0));
 const difM=(t,v)=>v==null||Math.abs(v)<0.01?"":` <span class="b ${v<0?"er":"wn"}">${t}: ${v<0?"faltan":"sobran"} $ ${money(Math.abs(v))}</span>`;
 function rowCJ(x,adm){const an=x.estado=="anulado",pend=x.control=="pendiente",mio=x.por==uid,tr=sumO(x.transf),tj=sumO(x.tarj);
- return `<div class="row ${an?"an":""}"><b>${esc(x.sucursal)} · ${esc(x.caja)} · ${esc(x.turno)}</b> · ${esc(x.cajero)} · ${fmt(x.fecha)}<br>Efectivo contado <b>$ ${money(x.contado)}</b>${x.retiros?` · retiros del turno $ ${money(x.retiros)}`:""}${billTx(x)?`<br><span class="mu">${esc(billTx(x))}</span>`:""}
+ return `<div class="row ${an?"an":""}"><b>${esc(x.sucursal)} · ${esc(x.caja)} · ${esc(x.turno)}</b> · ${esc(x.cajero)} · ${fmt(x.fecha)}<br>Efectivo contado <b>$ ${money(x.contado)}</b>${x.retiros?` · retiros del turno $ ${money(x.retiros)}`:""}${x.ctacte?` · tickets de empleados $ ${money(x.ctacte)}`:""}${billTx(x)?`<br><span class="mu">${esc(billTx(x))}</span>`:""}
 ${Object.keys(x.transf||{}).map(c=>`<br>${/mercado/i.test(c)?"Mercado Pago (QR y posnet)":"Transferencias en "+esc(c)}: $ ${money(x.transf[c])}`).join("")}${Object.keys(x.tarj||{}).map(c=>`<br>Posnet Clover (acredita en ${esc(c)}): $ ${money(x.tarj[c])}`).join("")}${x.diarco>0?`<br>Posnet Diarco (crédito para mercadería): $ ${money(x.diarco)}`:""}
 <br>${an?"":pend?'<span class="b wn">falta corroborar con el sistema</span>':`${x.esperado?`Sistema: efectivo $ ${money(x.esperado)} · `:""}${difTx(x)}${difM("Mercado Pago y transferencias",x.difTr)}${difM("tarjetas",x.difTj)}${difM("Diarco",x.difDi)}${x.controlPor?` <span class="mu">· corroboró ${esc(x.controlPor)}</span>`:""}`}
 ${an?"":(adm&&pend?` <button class="lk" data-a="cjsel" data-id="${x.id}">${cjSel==x.id?"Cerrar":"Corroborar"}</button>`:"")+(adm&&!pend&&x.dif<-0.005?(DS.some(d=>d.cierre==x.id&&d.estado!="anulado")?' <span class="b">faltante pasado a la liquidación</span>':puede("emp")?` <button class="lk" data-a="dfalt" data-id="${x.id}">Pasar faltante a la liquidación</button>`:""):"")+(adm||(mio&&pend)?` <button class="lk" data-a="cjanular" data-id="${x.id}">Anular</button>`:"")}${mot(x)}
-${adm&&pend&&cjSel==x.id&&!an?`<div style="margin-top:8px;padding:10px;border:1px solid var(--bd);border-radius:10px"><p class="mu" style="margin-top:0">Carga lo que dice el sistema de ventas para esta caja y turno. La app compara y marca si falta o sobra.</p>
+${adm&&pend&&cjSel==x.id&&!an?`<div style="margin-top:8px;padding:10px;border:1px solid var(--bd);border-radius:10px"><p class="mu" style="margin-top:0">Carga lo que dice el sistema de ventas para esta caja y turno. La app compara y marca si falta o sobra. Al efectivo contado le suma los retiros del turno y los tickets que se llevaron empleados a cuenta.</p>
 <label>Efectivo vendido según el sistema<input id="kx" type="number" step="0.01" inputmode="decimal"></label><label>Mercado Pago y transferencias según el sistema (el cajero declaró $ ${money(tr)})<input id="kt" type="number" step="0.01" inputmode="decimal"></label><label>Tarjetas (Clover) según el sistema (el cajero declaró $ ${money(tj)})<input id="kj" type="number" step="0.01" inputmode="decimal"></label><label>Posnet Diarco según el sistema (el cajero declaró $ ${money(x.diarco||0)})<input id="kd" type="number" step="0.01" inputmode="decimal"></label><label>Ventas totales del turno según el sistema (opcional)<input id="kv" type="number" step="0.01" inputmode="decimal"></label>
 <button class="pri" data-a="cjok" data-id="${x.id}">Guardar control de esta caja</button></div>`:""}</div>`}
 async function cjok(id){const x=CJ.find(z=>z.id==id);if(!x||!cajAdm()||x.estado=="anulado")return;if(cerrado(x.fecha))return say(MC);
  const raw=k=>String(keep[k]==null?"":keep[k]).trim(),v=k=>raw(k)===""?null:(parseFloat(raw(k))||0),ex=v("kx"),st=v("kt"),sj=v("kj"),vt=v("kv"),sd=v("kd"),dDi=sd==null?null:r2((x.diarco||0)-sd);
  if(ex==null)return say("Falta el efectivo vendido según el sistema (si no hubo, pon 0)");
- const dif=r2(x.contado+(x.retiros||0)-ex),dTr=st==null?null:r2(sumO(x.transf)-st),dTj=sj==null?null:r2(sumO(x.tarj)-sj);
+ const dif=r2(x.contado+(x.retiros||0)+(x.ctacte||0)-ex),dTr=st==null?null:r2(sumO(x.transf)-st),dTj=sj==null?null:r2(sumO(x.tarj)-sj);
  await colCJ.doc(id).update({esperado:ex,dif,sisTr:st,difTr:dTr,sisTj:sj,difTj:dTj,sisDi:sd,difDi:dDi,ventas:vt>0?vt:r2(ex+(st==null?sumO(x.transf):st)+(sj==null?sumO(x.tarj):sj)+(sd==null?(x.diarco||0):sd)),ventasEst:!(vt>0),control:"ok",controlPor:miNombre(),controlEl:Date.now()});
  ["kx","kt","kj","kv","kd"].forEach(k=>delete keep[k]);cjSel="";const res=Math.abs(dif)<0.01?"efectivo justo":dif<0?"faltan $ "+money(-dif):"sobran $ "+money(dif);
  await log("Corroboró cierre de caja",x.sucursal+" · "+x.caja+" · "+x.turno+" · "+x.cajero+" · "+res);say("Control guardado ✔ "+res.charAt(0).toUpperCase()+res.slice(1))}
@@ -576,7 +584,7 @@ async function isave(){
  if(ef>0)await colI.add({...base,medio:"Efectivo",cuenta:"",monto:ef});
  for(const [c,v] of tr)await colI.add({...base,medio:"Transferencia",cuenta:c,monto:v});
  for(const [c,v] of tj)await colT.add({...base,cuenta:c,monto:v,estado:"pendiente"});
-  await colCJ.doc(cid).set({...base,contado:ef,esperado:ex,retiros:ret,dif,ventas:vt>0?vt:r2((ex>0?ex:ef+ret)+st(tr)+st(tj)+vd),diarco:vd,ventasEst:!(vt>0),transf:o1,tarj:o2,cargo:miNombre(),billetes:bil,monedas:mon,control:"pendiente"});
+  await colCJ.doc(cid).set({...base,contado:ef,esperado:ex,retiros:ret,dif,ventas:vt>0?vt:r2((ex>0?ex:ef+ret)+st(tr)+st(tj)+vd),diarco:vd,ctacte:tkTurno(f,sc,ca,tu),ventasEst:!(vt>0),transf:o1,tarj:o2,cargo:miNombre(),billetes:bil,monedas:mon,control:"pendiente"});
  Object.keys(keep).filter(k=>["bmon","imp","itr","icl","idi"].includes(k)||/^bq\d+$/.test(k)).forEach(k=>delete keep[k]);if(vd>0)await diMov("posnet",vd,{fecha:f,sucursal:sc,caja:ca,turno:tu,cajero:cj,cierre:cid});try{localStorage.setItem("cpCaja",JSON.stringify({is:sc,ica:ca,itu:tu}))}catch(e){}
  await log("Cargó cierre de caja",sc+" · "+ca+" · "+tu+" · "+cj+(dif==null||Math.abs(dif)<0.01?"":dif<0?" · faltan $ "+money(-dif):" · sobran $ "+money(dif)));
  say("Cierre guardado ✔ Efectivo $ "+money(ef)+". Administración lo corrobora con el sistema"+(dif==null?"":Math.abs(dif)<0.01?" La caja cierra justa":dif<0?" Faltan $ "+money(-dif):" Sobran $ "+money(dif)))}
@@ -596,7 +604,7 @@ async function dfalt(id){
  await colDS.add({empleado:e,fecha:x.fecha,monto:r2(-x.dif),motivo:"Faltante de caja · "+x.sucursal+" · "+x.caja+" · "+x.turno,cierre:id,estado:"ok",por:uid,creado:Date.now()});
  await log("Pasó faltante de caja a la liquidación",e+" $ "+money(-x.dif));say("Faltante de $ "+money(-x.dif)+" sumado a la liquidación de "+e+" ✔")}
 function vCaj(){
- const adm=cajAdm(),f=keep.if||today(),sc=keep.is||SUC[0],ca=keep.ica||CAJAS[0],tu=keep.itu||TURNOS[0],ret=retTurno(f,sc,ca,tu),ya=cierreDe(f,sc,ca,tu),de=keep.rcd||DEST[0],m=/^\d{4}-\d{2}$/.test(keep.cjm||"")?keep.cjm:today().slice(0,7);
+ const adm=cajAdm(),f=keep.if||today(),sc=keep.is||SUC[0],ca=keep.ica||CAJAS[0],tu=keep.itu||TURNOS[0],ret=retTurno(f,sc,ca,tu),tks=tkDe(f,sc,ca,tu),tkt=r2(tks.reduce((s,x)=>s+x.monto,0)),ya=cierreDe(f,sc,ca,tu),de=keep.rcd||DEST[0],m=/^\d{4}-\d{2}$/.test(keep.cjm||"")?keep.cjm:today().slice(0,7);
  const fld=(id,t)=>`<label>${t}<input id="${id}" type="number" step="0.01" inputmode="decimal"></label>`;
  const dlc=`<datalist id="dlc">${[...new Set(emps().concat(noms(),CJ.map(x=>x.cajero)))].filter(Boolean).map(n=>`<option value="${esc(n)}">`).join("")}</datalist>`;
  const lc=CJ.filter(x=>x.fecha==f&&(adm||x.por==uid)).map(x=>rowCJ(x,adm)).join("")||'<p class="mu">Todavía no hay cierres en esa fecha.</p>',pen=adm?CJ.filter(x=>x.estado!="anulado"&&x.control=="pendiente"&&x.fecha!=f).sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha))):[];
@@ -604,7 +612,11 @@ function vCaj(){
  const G={};CJ.filter(x=>x.estado!="anulado"&&mesDe(x.fecha)==m&&x.dif!=null).forEach(x=>{const g=G[x.cajero]=G[x.cajero]||{n:0,fa:0,so:0};g.n++;if(x.dif<0)g.fa+=-x.dif;else g.so+=x.dif});
  const tm=Object.keys(G).sort((a,b)=>G[b].fa-G[a].fa).map(k=>`<tr><td>${esc(k)}</td><td>${G[k].n}</td><td class="${G[k].fa>0?"er":""}">${money(G[k].fa)}</td><td>${money(G[k].so)}</td><td><b>${money(G[k].so-G[k].fa)}</b></td></tr>`).join("");
  return vQuien("¿Quién está cargando?")+dlc+`<div class="card"><h3>Caja y turno</h3><label>Fecha<input id="if" type="date" value="${today()}"></label><label>Sucursal<select id="is">${opts(SUC)}</select></label><label>Caja<select id="ica">${opts(CAJAS)}</select></label><label>Turno<select id="itu">${opts(TURNOS)}</select></label>${adm?`<label>Cajero o cajera<input id="icj" list="dlc" placeholder="${esc(quien()||"Nombre y apellido")}"></label>`:`<p>Cajero: <b>${esc(quien())}</b></p>`}
-${ya?'<p class="er">Esta caja y turno ya tienen el cierre cargado.</p>':`<p class="mu">Retiros de efectivo de esta caja en el turno: <b>$ ${money(ret)}</b></p>`}</div>
+${ya?'<p class="er">Esta caja y turno ya tienen el cierre cargado.</p>':`<p class="mu">Retiros de efectivo de esta caja en el turno: <b>$ ${money(ret)}</b><br>Tickets de empleados a cuenta en el turno: <b>$ ${money(tkt)}</b></p>`}</div>
+<div class="card"><h3>Ticket que se lleva un empleado</h3><p class="mu">Cuando un empleado se lleva mercadería a su cuenta: sale el ticket pero no se cobra. Cárgalo acá para que no figure como faltante al cerrar la caja y se le descuente del sueldo.</p>
+<label>Empleado que se lo lleva<input id="tke" list="dlc" autocomplete="off" placeholder="Nombre y apellido"></label>${fld("tkm","Importe del ticket")}<label>N° de ticket (opcional)<input id="tkn" inputmode="numeric"></label>
+<button class="pri" data-a="tkcaja">Guardar ticket</button>
+${tks.length?`<p class="mu" style="margin-top:12px">Tickets de este turno:</p>`+tks.map(x=>`<div class="row"><b>${esc(x.empleado)}</b> · $ ${money(x.monto)} <span class="mu">${esc(x.detalle||"")} · cargó ${esc(x.cargo||"")}</span>${!ya&&(adm||x.por==uid)?` <button class="lk" data-a="ranular" data-id="${x.id}">Anular</button>`:""}</div>`).join(""):""}</div>
 <div class="card"><h3>Retiro de efectivo de la caja</h3><p class="mu">Cada vez que se saca plata de la caja durante el turno. Al cerrar, los retiros se suman al efectivo contado para comparar con el sistema.</p>
 ${fld("rcm","Monto que se retira")}<label>Para qué<select id="rcd">${opts(DEST)}</select></label>${de==DEST[1]?`<label>En qué cuenta se deposita<select id="rcb">${opts(CTAS.slice(1))}</select></label>`:""}<label>Detalle<input id="rcx"></label>
 <button class="pri" data-a="rcsave">Guardar retiro</button><div class="fl">${esc(flash)}</div></div>
@@ -1274,7 +1286,7 @@ document.addEventListener("click",async e=>{const t=e.target.closest("[data-t],[
   else if(a=="cquit"){if(puede("autorizar")){for(const c of AD.filter(c=>c.proveedor==id))await colA.doc(c.id).delete();await log("Quitó la marca de al día",id)}}
   else if(a=="bquitar"){bfoto=null;bitems=[];bmsg="";render()}
   else if(a=="nueva")await nueva();
-  else if(a=="isave")await isave();else if(a=="cjok")await cjok(id);else if(a=="dicanje")await dicanje();else if(a=="cjsel"){cjSel=cjSel==id?"":id;["kx","kt","kj","kv"].forEach(k=>delete keep[k]);render()}
+  else if(a=="isave")await isave();else if(a=="cjok")await cjok(id);else if(a=="dicanje")await dicanje();else if(a=="tkcaja")await tkcaja();else if(a=="cjsel"){cjSel=cjSel==id?"":id;["kx","kt","kj","kv"].forEach(k=>delete keep[k]);render()}
   else if(a=="tj"){acSel[id]=!acSel[id];render()}
   else if(a=="acred")await acred();
   else if(a=="esave")await esave();
