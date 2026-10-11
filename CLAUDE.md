@@ -20,3 +20,4 @@ App de gestión de un supermercado con dos sucursales. Usuario final no técnico
 - Las reglas distinguen: acceso completo (`fin()`), caja (`caja()`), traslados/mercadería (`depo()`) y datos propios (`esMia()`). Si una función nueva escribe en otra colección, revisar reglas y el simulador.
 - Las escrituras no esperan al servidor (`dbRapida`): confirman al instante y avisan si después fallan.
 - Límites del plan gratuito: 50.000 lecturas por día. Los usuarios con acceso completo bajan todos los datos del mes al abrir.
+- Cajas: los usuarios con acceso completo solo bajan los cierres de los últimos 7 días y los que faltan corroborar. Los cerrados se copian a `cajasmes/{AAAA-MM}` (un documento por mes, campo `r` con cada cierre como texto JSON); `CJ` se arma mezclando ambos (`cjMix`). Todo cambio a un cierre ya corroborado tiene que llamar a `cjArchUp`. Los informes por período piden los meses con `cjNeed(d1,d2)`.
