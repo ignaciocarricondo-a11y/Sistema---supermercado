@@ -37,7 +37,7 @@ input,select,textarea{display:block;width:100%;box-sizing:border-box;margin-top:
 @media(prefers-reduced-motion:reduce){#toast{transition:none}}
 details>summary{cursor:pointer;padding:10px 2px;color:var(--mu);font-size:14px;list-style:none}details>summary::-webkit-details-marker{display:none}details>summary::before{content:"▸ ";color:var(--ac)}details[open]>summary::before{content:"▾ "}
 details.dsal{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:2px 12px;margin-bottom:12px}details.dsal>summary{color:var(--tx);font-size:15px}details.dsal>.card{border:0;padding:0;margin:0 0 8px}details.dsal>.card>h3{display:none}
-#upd{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);z-index:20;background:#1f2a24;color:#fff;border:0;border-radius:999px;padding:11px 16px;font:600 14px/1.2 system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.35);white-space:nowrap}
+#upd{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));left:8px;right:8px;z-index:20;max-width:560px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fbbf24;color:#231a1c;border:0;border-radius:14px;padding:13px 16px;font:500 15px/1.25 system-ui,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.4);text-align:left;animation:updp 1.6s ease-in-out infinite}#upd b{background:#231a1c;color:#fff;border-radius:999px;padding:8px 14px;white-space:nowrap;font-size:14px}@keyframes updp{50%{box-shadow:0 8px 28px rgba(0,0,0,.4),0 0 0 6px rgba(251,191,36,.35)}}@media(prefers-reduced-motion:reduce){#upd{animation:none}}
 .gf{display:flex;gap:10px;align-items:center;justify-content:space-between}.gf>div{min-width:0}.gf button.pri{flex:0 0 auto;width:auto;padding:9px 16px;margin:0}
 #ayq{width:100%;box-sizing:border-box;font:inherit;font-size:16px;padding:12px;border:2px solid var(--ac);border-radius:12px;background:var(--card);color:var(--tx)}
 details.intro{background:var(--card);border:1px dashed var(--bd);border-radius:12px;padding:0 12px;margin-bottom:12px}details.intro p{margin:0 0 10px;font-size:14px;line-height:1.45}
@@ -202,7 +202,7 @@ async function anularOrden(id,X){
  await colO.doc(id).update({estado:"anulada",...X});cur="";await log("Anuló orden de pago",o.proveedor+" "+id+" · "+X.motivo);return ""}
 function render(){
  sync();const me=yo(),w=$("#who"),rk=()=>{for(const k in keep){const el=document.getElementById(k);if(el&&k!="ph"&&el.type!="file")el.value=keep[k]}};
- if(w)w.innerHTML=me?`${esc(me.nombre)} · ${esc(me.rango||"sin rango todavía")} ${me.rango?'<button class="lk" data-a="ayuda">Ayuda</button>':""}${me.directo?"":' · <button class="lk" data-a="clave">Mi clave</button> · <button class="lk" data-a="lgout">Salir</button>'}`:"";
+ if(w)w.innerHTML=me?`${esc(me.nombre)} · ${esc(me.rango||"sin rango todavía")} <button class="lk" data-a="recargar" title="Buscar si hay una versión nueva y actualizar">⟳ Actualizar</button>${me.rango?' · <button class="lk" data-a="ayuda">Ayuda</button>':""}${me.directo?"":' · <button class="lk" data-a="clave">Mi clave</button> · <button class="lk" data-a="lgout">Salir</button>'}`:"";
  if(!auOk){$("#tabs").innerHTML="";$("#app").innerHTML='<div class="card">Cargando…</div>';return}
  if(!me){$("#tabs").innerHTML="";$("#app").innerHTML=vLogin();rk();return}
  if(!me.rango){$("#tabs").innerHTML="";$("#app").innerHTML=`<div class="card"><h3>Hola, ${esc(me.nombre)}</h3><p>Tu usuario <b>${esc(me.usuario)}</b> ya está creado. Falta que un dueño te asigne el rango para que puedas entrar.</p><p class="mu">Avísale y vuelve a abrir la app: apenas lo haga, esta pantalla cambia sola.</p></div>`;return}
@@ -1291,6 +1291,7 @@ document.addEventListener("click",async e=>{const hh=e.target.closest("#app>.car
  const t=e.target.closest("[data-t],[data-a]");if(!t)return;
  if(t.dataset.t){tab=t.dataset.t;cmp=false;menuOpen=false;ayu=false;render();scrollTo(0,0);return}
  if(t.dataset.a=="menu"){menuOpen=!menuOpen;ayu=false;render();scrollTo(0,0);return}
+ if(t.dataset.a=="recargar"){location.reload();return}
  if(t.dataset.a=="ayuda"){ayu=!ayu;menuOpen=false;clv=false;render();scrollTo(0,0);return}
  if(t.dataset.a=="guia"){irGuia(+t.dataset.id);return}
  if(t.dataset.a=="introok"){const k=t.dataset.id;VISTO[k]=1;DET["int_"+k]=false;try{localStorage.setItem("cpVisto",JSON.stringify(VISTO))}catch(e){}render();return}
@@ -1404,7 +1405,7 @@ document.addEventListener("click",async e=>{const hh=e.target.closest("#app>.car
 });
 let VER0=null,lastIn=Date.now(),updPend=false;
 async function chkVer(){try{const r=await fetch(location.pathname+"?v="+Date.now(),{method:"HEAD",cache:"no-store"});if(!r.ok)return;const v=r.headers.get("etag")||r.headers.get("last-modified")||r.headers.get("content-length");if(!v)return;if(VER0==null){VER0=v;return}if(v!==VER0){updPend=true;aplicarUpd()}}catch(e){}}
-function aplicarUpd(){if(!updPend)return;if(document.hidden||Date.now()-lastIn>40000){location.reload();return}if(!$("#upd")){const b=document.createElement("button");b.id="upd";b.textContent="Hay una mejora nueva · Tocar para actualizar";b.onclick=()=>location.reload();document.body.appendChild(b)}}
+function aplicarUpd(){if(!updPend)return;if(document.hidden||Date.now()-lastIn>40000){location.reload();return}if(!$("#upd")){const b=document.createElement("button");b.id="upd";b.innerHTML="<span>🔔 Hay una versión nueva de la app</span><b>Actualizar ahora</b>";b.onclick=()=>location.reload();document.body.appendChild(b)}}
 setInterval(()=>{updPend?aplicarUpd():chkVer()},60000);document.addEventListener("visibilitychange",()=>{if(!document.hidden)updPend?aplicarUpd():chkVer()});chkVer();
 ["input","keydown","pointerdown"].forEach(ev=>document.addEventListener(ev,()=>{lastIn=Date.now()},true));
 let rzT=0;window.addEventListener("resize",()=>{clearTimeout(rzT);rzT=setTimeout(acordeon,150)});
