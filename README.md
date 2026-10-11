@@ -1,9 +1,10 @@
 # Sistema para supermercado
 
-App de gestión de Super Encinas. Es una sola página (`index.html`) que usa Firebase (usuarios y datos).
+App de gestión de Super Encinas. Usa Firebase para usuarios y datos y se publica con GitHub Pages.
 
-- `index.html`: la app.
+- `src/`: el código, en partes.
+- `build.py`: une las partes y genera `index.html` (lo que se publica).
 - `firestore.rules`: reglas de acceso de la base de datos (se pegan en la consola de Firebase).
-- `firebase-config.js`: configuración pública del proyecto.
+- `pruebas/`: recorrido automático de la app contra un Firebase simulado.
 
 Este repositorio es público: acá va solo código, nunca datos del negocio.

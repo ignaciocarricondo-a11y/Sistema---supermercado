@@ -1,0 +1,178 @@
+function vVR(){
+ const L=VR.slice(0,14).map(x=>`<div class="row ${x.estado=="anulado"?"an":""}">${fmt(x.desde)}${x.hasta!=x.desde?" al "+fmt(x.hasta):""} · ${esc(x.sucursal)} · <b>${esc(x.rubro)}</b> · <b>$ ${money(x.monto)}</b>${x.estado!="anulado"?` <button class="lk" data-a="vranular" data-id="${x.id}">Anular</button>`:""}${mot(x)}</div>`).join("")||'<p class="mu">Todavía no se cargaron ventas por rubro.</p>';
+ return `<div class="card"><h3>Ventas por rubro</h3><p class="mu">Lo que vendió cada sector según el sistema de ventas (carnicería, verdulería, fiambrería y los demás). Sirve para comparar con lo que se compró y sacar el rinde. Se puede cargar por día, por semana o por mes; deja vacío el rubro que no quieras cargar.</p>
+<label>Desde<input id="vrd1" type="date" value="${today()}"></label><label>Hasta<input id="vrd2" type="date" value="${today()}"></label><label>Sucursal<select id="vrs">${opts(SUC)}</select></label>
+${RUB.map((r,i)=>`<label>Ventas de ${esc(r)}<input id="vr_${i}" type="number" step="0.01" inputmode="decimal"></label>`).join("")}
+<button class="pri" data-a="vrsave">Guardar ventas por rubro</button><div class="fl">${esc(flash)}</div><h3 style="margin-top:14px">Últimas cargas</h3>${L}</div>`}
+async function vrsave(){const g=i=>(document.getElementById(i)||{value:""}).value.trim(),d1=g("vrd1"),d2=g("vrd2"),sc=g("vrs")||SUC[0];
+ if(!d1||!d2||d2<d1)return say("Revisa las fechas: Hasta no puede ser anterior a Desde");
+ const it=RUB.map((r,i)=>[r,parseFloat(g("vr_"+i))]).filter(a=>a[1]>0);if(!it.length)return say("Carga la venta de al menos un rubro");
+ const du=it.find(a=>VR.some(x=>x.estado!="anulado"&&x.sucursal==sc&&x.rubro==a[0]&&x.desde<=d2&&x.hasta>=d1));if(du)return say("Ya hay ventas de "+du[0]+" cargadas para "+sc+" en esas fechas: anúlalas si quieres corregirlas");
+ for(const [r,m] of it)await colVR.add({desde:d1,hasta:d2,fecha:d2,sucursal:sc,rubro:r,monto:r2(m),estado:"ok",cargo:miNombre(),por:uid,creado:Date.now()});
+ RUB.forEach((r,i)=>delete keep["vr_"+i]);await log("Cargó ventas por rubro",sc+" · "+fmt(d1)+(d2!=d1?" al "+fmt(d2):"")+" · "+it.length+" rubros");say("Ventas por rubro guardadas ✔")}
+function rinde(d1,d2){const o={},k=r=>{r=r||"Sin rubro";return o[r]||(o[r]={r,c:0,v:0,m:0,cs:{},vs:{}})};RUB.forEach(k);
+ B.filter(b=>b.estado!="anulada"&&b.estado!="por autorizar"&&b.fecha>=d1&&b.fecha<=d2).forEach(b=>{const x=k(b.rubro);x.c+=b.monto;x.cs[b.sucursal]=(x.cs[b.sucursal]||0)+b.monto});
+ TR.filter(t=>(t.estado=="recibido"||t.estado=="en viaje")&&t.rubro&&t.valor>0&&t.fecha>=d1&&t.fecha<=d2).forEach(t=>{const x=k(t.rubro);x.cs[t.origen]=(x.cs[t.origen]||0)-t.valor;x.cs[t.destino]=(x.cs[t.destino]||0)+t.valor;x.tr=(x.tr||0)+t.valor});
+ const vr=VR.filter(x=>x.estado!="anulado");vr.filter(x=>x.desde>=d1&&x.hasta<=d2).forEach(v=>{const x=k(v.rubro);x.v+=v.monto;x.vs[v.sucursal]=(x.vs[v.sucursal]||0)+v.monto});
+ MM.filter(x=>x.estado!="anulado"&&x.clase==CLA[0]&&x.fecha>=d1&&x.fecha<=d2).forEach(m=>{k(m.rubro).m+=m.monto});
+ const filas=Object.values(o).filter(x=>x.c||x.v||x.tr).map(x=>({...x,dif:r2(x.v-x.c),sc:x.c?(x.v-x.c)/x.c*100:null,sv:x.v?(x.v-x.c)/x.v*100:null}));
+ return{filas,parcial:vr.some(x=>x.desde<=d2&&x.hasta>=d1&&!(x.desde>=d1&&x.hasta<=d2))}}
+function vRinde(){
+ const d1=keep.rnd1||today().slice(0,8)+"01",d2=keep.rnd2||today(),X=rinde(d1,d2),pc=n=>n==null?"—":(n>0?"+":"")+n.toFixed(1).replace(".",",")+" %";
+ const tc=X.filas.reduce((s,f)=>s+f.c,0),tv=X.filas.reduce((s,f)=>s+(f.v?f.v:0),0);
+ return `<div class="card"><h3>Rinde por rubro</h3><p class="mu">Compara lo que se compró de cada rubro (boletas) con lo que se vendió (ventas por rubro cargadas en Cajas).</p>
+<label>Desde<input id="rnd1" type="date" value="${d1}"></label><label>Hasta<input id="rnd2" type="date" value="${d2}"></label>
+${X.filas.length?`<div class="sc"><table><tr><th>Rubro</th><th>Se compró</th><th>Se vendió</th><th>Dejó en plata</th><th>Sobre la compra</th><th>De cada venta queda</th><th>Mermas</th></tr>${X.filas.map(f=>`<tr><td><b>${esc(f.r)}</b></td><td>${money(f.c)}</td><td>${f.v?money(f.v):'<span class="mu">sin cargar</span>'}</td><td class="${f.v?(f.dif<0?"er":"ok"):""}"><b>${f.v?money(f.dif):"—"}</b></td><td>${f.v?pc(f.sc):"—"}</td><td>${f.v?pc(f.sv):"—"}</td><td>${f.m?money(f.m):""}</td></tr>`).join("")}</table></div>
+${X.filas.filter(f=>f.v&&f.c).map(f=>`<p>${esc(f.r)}: entró <b>$ ${money(f.c)}</b> en boletas y salió <b>$ ${money(f.v)}</b> en ventas. ${f.dif>=0?"Dejó":"Faltaron"} <b class="${f.dif<0?"er":"ok"}">$ ${money(Math.abs(f.dif))}</b>, que es el ${pc(f.sc).replace("+","")} sobre lo comprado.${SUC.map(s=>{const c=f.cs[s]||0,v=f.vs[s]||0;return `<br><span class="mu">${esc(s.replace("Sucursal ",""))}: le quedó como compra $ ${money(c)}, vendió $ ${money(v)}${v?", dejó $ "+money(v-c)+(c>0?" ("+pc((v-c)/c*100).replace("+","")+" sobre la compra)":""):""}</span>`}).join("")}${f.tr?`<br><span class="mu">Incluye $ ${money(f.tr)} de traslados entre sucursales.</span>`:""}</p>`).join("")}`:'<p class="mu">No hay boletas ni ventas por rubro en esas fechas.</p>'}
+${X.parcial?'<p class="wn">Hay ventas por rubro cargadas que abarcan fechas fuera de este período y no se sumaron: ajusta las fechas para que coincidan con lo cargado.</p>':""}
+<p class="mu">Es un rinde aproximado: compara compras y ventas del mismo período, sin contar la mercadería que quedó en la heladera o en la góndola de un período al otro. En carne y verdura, que rotan rápido, cuanto más largo el período (un mes), más exacto.</p></div>`}
+function vMov(){
+ const ct=["Efectivo"].concat(CTAS),de=ct.includes(keep.mvd)?keep.mvd:ct[0],S=saldos();
+ const L=MI.slice(0,12).map(x=>`<div class="row ${x.estado=="anulado"?"an":""}">${fmt(x.fecha)} · <b>${esc(x.de)} → ${esc(x.a)}</b> · <b>$ ${money(x.monto)}</b> ${esc(x.nota||"")}${x.ref?" · operación "+esc(x.ref):""} <span class="mu">· cargó ${esc(x.cargo||"")}</span>${x.estado!="anulado"?` <button class="lk" data-a="mianular" data-id="${x.id}">Anular</button>`:""}${mot(x)}</div>`).join("")||'<p class="mu">Todavía no hay movimientos entre cuentas.</p>';
+ return `<div class="card"><h3>Mover plata entre cuentas</h3><p class="mu">Para cuando se transfiere de un banco a otro o se deposita efectivo en un banco, por ejemplo para cubrir un cheque. No es un gasto ni un ingreso: la plata sale de un lado y entra en el otro.</p>
+<label>Sale de${puede("saldos")?` (hay $ ${money(S[de]||0)})`:""}<select id="mvd">${opts(ct)}</select></label><label>Entra en<select id="mva">${opts(ct.filter(c=>c!=de))}</select></label>
+<label>Fecha<input id="mvf" type="date" value="${today()}"></label><label>Monto<input id="mvm" type="number" step="0.01" inputmode="decimal"></label><label>Para qué (por ejemplo, qué cheque se cubre)<input id="mvn"></label>
+<label>Nº de operación o de comprobante del depósito (opcional)<input id="mvo"></label>
+<button class="pri" data-a="mvsave">Guardar movimiento</button><div class="fl">${esc(flash)}</div><h3 style="margin-top:14px">Últimos movimientos entre cuentas</h3>${L}</div>`}
+async function mvsave(){const g=i=>(document.getElementById(i)||{value:""}).value.trim(),de=g("mvd")||"Efectivo",a=g("mva"),f=g("mvf"),m=parseFloat(g("mvm")),S=saldos();
+ if(!a||a==de)return say("Elige una cuenta de destino distinta de la de salida");if(!f||!(m>0))return say("Falta el monto");if(cerrado(f))return say(MC);
+ if(m>(S[de]||0)+0.005&&ovr!="m"+de+a+m){ovr="m"+de+a+m;return say(puede("saldos")?"⚠ Supera el saldo de "+de+" ($ "+money(S[de]||0)+"). Toca Guardar otra vez para confirmar":"⚠ Supera el saldo disponible en el sistema. Toca Guardar otra vez para confirmar")}
+ ovr="";const d={fecha:f,de,a,monto:r2(m),nota:g("mvn"),ref:g("mvo"),estado:"ok",cargo:miNombre(),por:uid,creado:Date.now()},b={fecha:f,sucursal:"General",monto:r2(m),estado:"ok",origen:"cambio",por:uid,creado:Date.now()};
+ if(mphoto&&assets){try{d.foto=(await assets.upload(await shrink(mphoto))).id}catch(e){}}
+ d.egreso=(await colE.add({...b,tipo:"Movimiento entre cuentas",fuente:de,detalle:"a "+a+(d.nota?" · "+d.nota:"")})).id;
+ d.ingreso=(await colI.add({...b,medio:a=="Efectivo"?"Efectivo":"Transferencia",cuenta:a=="Efectivo"?"":a,tipo:"movint"})).id;
+ await colMI.add(d);["mvm","mvn","mvo"].forEach(k=>delete keep[k]);mphoto=null;await log("Movió plata entre cuentas",de+" → "+a+" $ "+money(m)+(d.nota?" · "+d.nota:""));say("Movimiento guardado ✔ Salen $ "+money(m)+" de "+de+" y entran en "+a)}
+const venceFijo=(f,m)=>{const u=finMes(m);return m+"-"+String(Math.min(Math.max(1,parseInt(f.dia)||1),parseInt(u.slice(8)))).padStart(2,"0")};
+const pagoFijo=(f,m)=>E.some(x=>x.fijo==f.id&&x.mesFijo==m&&x.estado!="anulado");
+function vFijos(){const m=today().slice(0,7),L=FJ.filter(f=>f.estado!="baja").sort((a,b)=>a.dia-b.dia);
+ return `<div class="card"><h3>Gastos fijos e impuestos del mes</h3><p class="mu">Lo que se repite todos los meses: alquiler, luz, gas, contador, impuestos, cuotas. Se cargan una vez y la app avisa cuáles faltan pagar.</p>
+${L.map(f=>{const pg=pagoFijo(f,m),v=venceFijo(f,m),d=daysTo(v);return `<div class="row"><b>${esc(f.nombre)}</b> · ${esc(f.tipo)} · vence el ${fmt(v)} · sale de ${esc(f.fuente)} ${pg?'<span class="b ok">pagado</span>':d<0?`<span class="b er">vencido hace ${-d} d</span>`:d<=5?`<span class="b wn">${d==0?"vence hoy":"vence en "+d+" d"}</span>`:'<span class="b">pendiente</span>'}${pg?"":`<label>Monto a pagar este mes<input id="fj_${f.id}" type="number" step="0.01" inputmode="decimal" value="${f.monto}"></label><button class="lk" data-a="fjpay" data-id="${f.id}">Registrar pago</button>`} <button class="lk" data-a="fjdel" data-id="${f.id}">Quitar de la lista</button></div>`}).join("")||'<p class="mu">Todavía no hay gastos fijos cargados.</p>'}
+<h3 style="margin-top:14px">Agregar gasto fijo</h3><label>Nombre<input id="gjn" placeholder="Ej.: Alquiler local Sarmiento"></label><label>Tipo<select id="gjt">${opts(TG)}</select></label><label>Monto habitual<input id="gjm" type="number" step="0.01" inputmode="decimal"></label><label>Día del mes en que vence<input id="gjd" type="number" min="1" max="31" inputmode="numeric"></label><label>Sale de<select id="gju">${opts(["Efectivo"].concat(CTAS))}</select></label><label>Sucursal<select id="gjs">${opts(SUC.concat(["General"]))}</select></label><button class="pri" data-a="fjsave">Agregar gasto fijo</button></div>`}
+async function fjsave(){const g=i=>(document.getElementById(i)||{value:""}).value.trim(),n=g("gjn"),m=parseFloat(g("gjm")),d=parseInt(g("gjd"));
+ if(!n||!(m>0)||!(d>=1&&d<=31))return say("Completa nombre, monto y día del mes (1 a 31)");
+ await colFJ.add({nombre:n,tipo:g("gjt"),monto:r2(m),dia:d,fuente:g("gju"),sucursal:g("gjs"),estado:"ok",por:uid,creado:Date.now()});["gjn","gjm","gjd"].forEach(k=>delete keep[k]);await log("Agregó gasto fijo",n+" $ "+money(m));say("Gasto fijo agregado ✔")}
+async function fjpay(id){const f=FJ.find(z=>z.id==id);if(!f)return;const mes=today().slice(0,7),m=parseFloat((document.getElementById("fj_"+id)||{value:""}).value)||f.monto,S=saldos();
+ if(pagoFijo(f,mes))return say("Ese gasto ya figura pagado este mes");
+ if(m>(S[f.fuente]||0)+0.005&&ovr!="f"+id+m){ovr="f"+id+m;return say(puede("saldos")?"⚠ Supera el saldo de "+f.fuente+" ($ "+money(S[f.fuente]||0)+"). Toca otra vez para confirmar":"⚠ Supera el saldo disponible en el sistema. Toca otra vez para confirmar")}
+ ovr="";await colE.add({fecha:today(),tipo:f.tipo,fuente:f.fuente,sucursal:f.sucursal,monto:r2(m),detalle:f.nombre,fijo:id,mesFijo:mes,estado:"ok",por:uid,creado:Date.now()});delete keep["fj_"+id];await log("Pagó gasto fijo",f.nombre+" $ "+money(m));say("Pago registrado ✔")}
+function flujo(){
+ const S=saldos(),ini=Object.values(S).reduce((a,b)=>a+b,0),t0=today(),d0=addDays(t0,-28),sal=[],push=(f,m)=>{if(m>0.005)sal.push({f:f<t0?t0:f,m})};
+ const ing=I.filter(x=>x.estado!="anulado"&&x.fecha>d0&&x.fecha<=t0&&x.origen!="cambio"&&x.sucursal!="Saldo inicial / ajuste"),dias=ing.length?Math.max(7,Math.min(28,1-daysTo(ing.map(x=>x.fecha).sort()[0]))):0,prom=dias?ing.reduce((s,x)=>s+x.monto,0)/dias:0;
+ const tj=T.filter(t=>t.estado=="pendiente").reduce((s,t)=>s+t.monto,0);let sinF=0;
+ P.filter(x=>x.medio=="Cheque"&&x.estado=="emitido").forEach(x=>push(x.venc||t0,x.monto));
+ B.filter(b=>b.estado=="pendiente").forEach(b=>{if(b.vence)push(b.vence,b.monto);else sinF+=b.monto});
+ O.filter(o=>o.estado=="abierta").forEach(o=>{const v=o.boletas.map(i=>(B.find(b=>b.id==i)||{}).vence).filter(Boolean).sort()[0],fa=faltaDe(o.id);if(v)push(v,fa);else sinF+=fa});
+ [t0.slice(0,7),mesSig(t0.slice(0,7))].forEach(m=>FJ.filter(f=>f.estado!="baja"&&!pagoFijo(f,m)).forEach(f=>push(venceFijo(f,m),f.monto)));
+ let s=ini;const rows=[0,1,2,3].map(w=>{const a=addDays(t0,7*w),b=addDays(t0,7*w+6),en=prom*7+(w==0?tj:0),sa=sal.filter(x=>x.f>=a&&x.f<=b).reduce((q,x)=>q+x.m,0);s=s+en-sa;return{a,b,en,sa,s}});
+ return{ini,prom,rows,sinF,dias}}
+function vHoy(){
+ const t0=today(),L=[],it=(k,txt,tb)=>(!tb||puede(tb))&&L.push(`<div class="row"><span class="b ${k}">${k=="er"?"urgente":"atención"}</span> ${txt}${tb&&puede(tb)?` <button class="lk" data-t="${tb}">Ver</button>`:""}</div>`),su=a=>a.reduce((s,x)=>s+x.monto,0);
+ const ch=P.filter(x=>x.medio=="Cheque"&&x.estado=="emitido"&&daysTo(x.venc)<=1);if(ch.length)it("er",`Cheques que caen hoy o mañana, o ya vencidos sin marcar: <b>${ch.length}</b> por <b>$ ${money(su(ch))}</b>`,"chq");
+ const pb=B.filter(b=>b.vence&&(b.estado=="pendiente"||b.estado=="en orden")),bv=pb.filter(b=>daysTo(b.vence)<0),bp=pb.filter(b=>{const d=daysTo(b.vence);return d>=0&&d<=3});
+ if(bv.length)it("er",`Boletas vencidas sin pagar: <b>${bv.length}</b> por <b>$ ${money(su(bv))}</b>`,"bol");if(bp.length)it("wn",`Boletas que vencen en 3 días o menos: <b>${bp.length}</b> por <b>$ ${money(su(bp))}</b>`,"bol");
+ if(puedeRev()){const pr=B.filter(b=>b.estado=="por revisar");if(pr.length)it("wn",`Boletas cargadas por administración que esperan que las aceptes: <b>${pr.length}</b> por <b>$ ${money(su(pr))}</b>`,"bol")}
+ if(puede("autorizar")){const a1=B.filter(b=>b.estado=="por autorizar").length;if(a1)it("wn",`Boletas que esperan tu autorización: <b>${a1}</b>`,"bol");if(PE.length)it("wn",`Pagos que esperan tu autorización: <b>${PE.length}</b> por <b>$ ${money(su(PE))}</b>`,"reg")}
+ if(cajAdm())CJ.filter(x=>x.estado!="anulado"&&x.dif!=null&&Math.abs(x.dif)>=0.01&&(Math.abs(x.dif)>=UMB?!x.cargado:(x.fecha>=addDays(t0,-1)||(x.controlEl||0)>Date.now()-2*864e5))).forEach(x=>{const g=Math.abs(x.dif)>=UMB;it(g?"er":"wn",`Caja ${g?"con desfasaje":"con diferencia chica"} · ${esc(x.sucursal)} · ${esc(x.caja)} · ${esc(x.turno)} · ${esc(x.cajero)} (${fmt(x.fecha)}): ${x.dif<0?"faltan":"sobran"} <b>$ ${money(Math.abs(x.dif))}</b>${g?(x.dif<0?` · corresponde cargarle al cajero <b>$ ${money(exced(x))}</b>; falta marcar que ya se le cargó`:" · falta revisarlo"):` <span class="mu">(menos de $ ${money(UMB)}: no se descuenta)</span>`}`,"caj")});
+ if(cajAdm()){const cp=CJ.filter(x=>x.estado!="anulado"&&x.control=="pendiente"&&x.fecha<t0);if(cp.length)it("wn",`Cierres de caja de días anteriores sin corroborar con el sistema: <b>${cp.length}</b>`,"caj")}
+ const ob=B.filter(b=>obsB(b)&&b.estado!="anulada"&&b.estado!="pagada").length;if(ob)it("wn",`Boletas con faltantes sin resolver: <b>${ob}</b>`,"bol");
+ const dv=MM.filter(x=>x.clase==CLA[2]&&x.estado=="pendiente"&&-daysTo(x.fecha)>15);if(dv.length)it("wn",`Devoluciones que esperan nota de crédito hace más de 15 días: <b>${dv.length}</b> por <b>$ ${money(su(dv))}</b>`,"mer");
+ const hd=DIAS[new Date(t0+"T12:00:00").getDay()];if(puede("bol")||puede("reg"))FP.filter(f=>f.visita==hd).forEach(f=>{const d=B.filter(b=>key(b.proveedor)==f.clave&&(b.estado=="pendiente"||b.estado=="en orden")).reduce((s,b)=>s+b.monto,0);L.push(`<div class="row"><span class="b">hoy viene</span> <b>${esc(f.nombre)}</b>${d>0?" · boletas sin pagar por $ "+money(d):" · sin boletas pendientes"}${f.dpp>0?" · "+f.dpp+" % por pronto pago":""}</div>`)});
+ if(puede("gas")){const Q=semPago(),vb=ventaSem(Q.d1,Q.d2),fa=SOC.filter(x=>!pagoSoc(x[0],Q.d1));if(fa.length&&(vb>0||CJ.some(x=>x.estado!="anulado")||I.some(x=>x.estado!="anulado"&&x.cierre)))it(vb>0?"er":"wn",vb>0?`Pago para dueños de la semana del ${fmt(Q.d1)} al ${fmt(Q.d2)}: <b>$ ${money(fa.reduce((s,x)=>s+r2(vb*x[1]/100),0))}</b> · ${fa.map(x=>esc(x[0])+" $ "+money(r2(vb*x[1]/100))).join(" · ")} <span class="mu">(${fa.map(x=>String(x[1]).replace(".",",")+" %").join(" y ")} de $ ${money(vb)} de venta bruta)</span>`:`Pago para dueños de la semana del ${fmt(Q.d1)} al ${fmt(Q.d2)}: falta cargar los cierres de caja de esa semana para calcularlo`,"gas")}
+ if(puede("gas"))SM.filter(x=>x.tipo=="cambio"&&x.pendiente&&x.estado!="anulado").forEach(x=>it("er",`Pedirle a <b>${esc(x.socio)}</b> los <b>$ ${money(x.monto)}</b> en efectivo de la transferencia que se le hizo el ${fmt(x.fecha)} desde ${esc(x.cuenta)}`,"gas"));
+ if(puede("tra")){const tv=TR.filter(t=>t.estado=="en viaje");if(tv.length)it(tv.some(t=>Date.now()-(t.choferEl||0)>864e5)?"er":"wn",`Traslados en viaje sin recibir: <b>${tv.length}</b> (${tv.map(t=>esc(t.nro)+" a "+esc(t.destino.replace("Sucursal ",""))).join(", ")})`,"tra");const tp=TR.filter(t=>t.estado=="preparado").length;if(tp)it("wn",`Traslados preparados que todavía no salieron: <b>${tp}</b>`,"tra")}
+ if(cajAdm()){const sr=TR.filter(t=>t.estado=="entregado"&&t.cobro&&!t.rendido);if(sr.length)it("er",`Pedidos cobrados en destino sin rendir: <b>${sr.length}</b> por <b>$ ${money(sr.reduce((s,t)=>s+t.cobro.monto,0))}</b> (${sr.map(t=>esc(t.nro)+" "+esc(t.entrega||"")).join(", ")})`,"tra")}
+ if(esDueno){const td=TR.filter(t=>t.estado=="recibido"&&!t.coincide&&!t.revisado);if(td.length)it("er",`Traslados con diferencias entre lo que salió y lo que llegó: <b>${td.length}</b> (${td.map(t=>esc(t.nro)).join(", ")})`,"tra")}
+ if(puede("cli")){const fg={};FI.filter(x=>x.estado!="anulado").forEach(x=>{const g=fg[key(x.cliente)]=fg[key(x.cliente)]||{s:0,u:""};g.s+=x.monto;if(x.fecha>g.u)g.u=x.fecha});const fv=Object.values(fg).filter(g=>g.s>0.005&&-daysTo(g.u)>30);if(fv.length)it("wn",`Clientes que deben y no se mueven hace más de 30 días: <b>${fv.length}</b> por <b>$ ${money(fv.reduce((s,g)=>s+g.s,0))}</b>`,"cli")}
+ const ab=O.filter(o=>o.estado=="abierta"),sf=O.filter(o=>o.estado=="cancelada"&&!o.firmado&&o.total>0);
+ if(ab.length)it("wn",`Órdenes de pago abiertas: <b>${ab.length}</b>, faltan <b>$ ${money(ab.reduce((s,o)=>s+faltaDe(o.id),0))}</b>`,"reg");if(sf.length)it("wn",`Órdenes pagadas sin comprobante firmado: <b>${sf.length}</b>`,"reg");
+ const m=t0.slice(0,7);FJ.filter(f=>f.estado!="baja"&&!pagoFijo(f,m)).forEach(f=>{const d=daysTo(venceFijo(f,m));if(d<=5)it(d<0?"er":"wn",`${esc(f.nombre)}: ${d<0?"venció hace "+(-d)+" días":d==0?"vence hoy":"vence en "+d+" días"} · $ ${money(f.monto)}`,"gas")});
+ if(esDueno){const pu=AU.filter(u=>!u.rango&&u.estado!="baja");if(pu.length)it("er",`Usuarios nuevos que esperan que les asignes un rango: <b>${pu.map(u=>esc(u.nombre)).join(", ")}</b>`,"usr")}
+ if(esDueno){const ub=RB.length?Math.floor((Date.now()-RB[0].creado)/864e5):null;if((ub==null&&[B,P,I,E].some(a=>a.length>20))||ub>7)it("wn",ub==null?"Todavía no se descargó ningún respaldo de los datos":"Hace <b>"+ub+" días</b> que no se descarga el respaldo de los datos","sem");const pm=addDays(m+"-01",-1).slice(0,7),u=ultCierre();if((!u||u.mes<pm)&&[I,P,E].some(a=>a.some(x=>mesDe(x.fecha)<=pm)))it("wn",`Falta cerrar el mes <b>${mesTx(pm)}</b>`,"ctl");if([B,P,I,E,H].some(a=>a.length>=1000))it("er","Hay listas llenas: cierra y archiva los meses anteriores para que los saldos sigan siendo exactos","ctl")}
+ let fx="";if(puede("saldos")){const F=flujo();fx=`<div class="card"><h3>Flujo de caja estimado a 4 semanas</h3><p class="mu">Arranca con $ ${money(F.ini)}. Lo que entra es una estimación: ${F.dias?"el promedio de los últimos "+F.dias+" días ($ "+money(F.prom)+" por día)":"todavía no hay ingresos cargados para estimar"}, más las tarjetas por acreditar en la primera semana. Lo que sale son cheques, boletas con vencimiento y gastos fijos.</p>
+<div class="sc"><table><tr><th>Semana</th><th>Entra (estimado)</th><th>Sale</th><th>Saldo al final</th></tr>${F.rows.map(r=>`<tr><td>${fmt(r.a).slice(0,5)} al ${fmt(r.b).slice(0,5)}</td><td>${money(r.en)}</td><td>${money(r.sa)}</td><td class="${r.s<0?"er":""}"><b>${money(r.s)}</b></td></tr>`).join("")}</table></div>${F.sinF>0.005?`<p class="mu">No incluye $ ${money(F.sinF)} de boletas sin fecha de vencimiento cargada.</p>`:""}</div>`}
+ return `<div class="card"><h3>Hoy · ${fmt(t0)}</h3>${L.join("")||'<p class="ok">✔ No hay nada urgente para hoy.</p>'}</div>`+vSaldos()+fx}
+const ARC=[["pagos","Pagos"],["boletas","Boletas"],["ordenes","Órdenes de pago"],["ingresos","Ingresos"],["egresos","Gastos"],["cajas","Cierres de caja"],["retcaja","Retiros de caja"],["tarjetas","Tarjetas"],["notas","Notas de crédito"],["retiros","Retiros de mercadería"],["adelantos","Adelantos"],["liquidaciones","Liquidaciones"],["descuentos","Faltantes descontados"],["mermas","Mermas, consumo y devoluciones"],["socmov","Retiros y cambios de socios"],["traslados","Traslados entre sucursales"],["ventasrub","Ventas por rubro"],["movint","Movimientos entre cuentas"],["controles","Controles"],["historial","Historial"]];
+function vMes(){if(!esDueno)return"";
+ const cs=CM.slice().sort((a,b)=>b.mes.localeCompare(a.mes)),u=ultCierre(),tot=[N,U,AD,NC,FP,PE,RT,AV,LQ,B,O,P,I,T,E,K,H,RG,CM,RC,DS,FJ,CJ].reduce((s,a)=>s+a.length,0),lleno=[B,P,I,E,H].some(a=>a.length>=1000),pend=cs.filter(c=>!c.archivado).map(c=>c.mes).sort()[0],ar=cs.filter(c=>c.archivado);
+ return `<div class="card"><h3>Cierre de mes y archivo</h3><p class="mu">Al cerrar un mes se guarda el saldo con el que arranca el siguiente y ese mes queda bloqueado: no se le pueden cargar ni anular movimientos. Archivar pasa el detalle de un mes cerrado a un archivo comprimido para que la app no se llene; los datos se siguen consultando aquí abajo.</p>
+<p>Registros cargados en la app: <b>${tot}${lleno?" o más":""}</b> de los 25.000 que admite.${lleno?' <span class="er">Hay listas llenas: cierra y archiva los meses anteriores.</span>':""}</p>
+<label>Mes a cerrar<input id="cmm" type="month"></label><button class="pri" data-a="cmsave">Cerrar mes</button>
+${cs.map(c=>`<div class="row"><b>${mesTx(c.mes)}</b> · saldo de cierre $ ${money(Object.values(c.saldos||{}).reduce((a,b)=>a+b,0))} ${c.archivado?'<span class="b ok">archivado</span>':'<span class="b wn">sin archivar</span>'}${u&&c.mes==u.mes&&!c.archivado?` <button class="lk" data-a="cmopen" data-id="${c.mes}">Reabrir</button>`:""}${c.mes==pend?` <button class="lk" data-a="cmarch" data-id="${c.mes}">Descargar respaldo y archivar</button>`:""}</div>`).join("")||'<p class="mu">Todavía no se cerró ningún mes.</p>'}
+${arBusy?`<p class="fl">${esc(arBusy)}</p>`:""}<div class="fl">${esc(flash)}</div>
+${ar.length?`<h3 style="margin-top:14px">Consultar el archivo</h3><label>Mes<select id="arm">${ar.map(c=>`<option value="${c.mes}">${mesTx(c.mes)}</option>`).join("")}</select></label><label>Qué ver<select id="arc">${opts(ARC.map(a=>a[1]))}</select></label><button class="pri" data-a="arver">Ver</button>${arRows?`<p class="mu">${arRows.length} registros${arRows.length>300?" (se muestran los primeros 300; el resto está en el respaldo)":""}</p><div class="sc"><table><tr><th>Fecha</th><th style="text-align:left">Detalle</th><th>Importe</th><th></th></tr>${arRows.slice(0,300).map(x=>`<tr><td>${x.fecha?fmt(x.fecha):cuando(x.creado)}</td><td style="text-align:left;white-space:normal">${esc([x.proveedor,x.empleado,x.cajero,x.sucursal,x.caja,x.turno,x.tipo,x.medio,x.nro?"N° "+x.nro:"",x.orden,x.accion,x.detalle,x.nombre,x.estado,x.motivo?"motivo: "+x.motivo:""].filter(Boolean).join(" · "))}</td><td>${x.monto!=null?money(x.monto):x.total!=null?money(x.total):x.neto!=null?money(x.neto):""}</td><td>${x.firmado?"firmado":""}</td></tr>`).join("")}</table></div>`:""}`:""}</div>`}
+async function cerrarMes(){
+ if(!esDueno)return;const m=keep.cmm||"",c=ultCierre();
+ if(!/^\d{4}-\d{2}$/.test(m))return say("Elige el mes a cerrar");if(m>=today().slice(0,7))return say("Solo se puede cerrar un mes que ya terminó");if(c&&m<=c.mes)return say("Ese mes ya está cerrado");
+ const S=saldos(finMes(m)),o={};Object.keys(S).forEach(k=>o[k]=r2(S[k]));
+ await colCM.doc(m).set({mes:m,hasta:finMes(m),saldos:o,por:uid,nombre:miNombre(),creado:Date.now()});delete keep.cmm;await log("Cerró el mes",mesTx(m));say("Mes "+mesTx(m)+" cerrado ✔")}
+async function archivar(mes){
+ if(!esDueno||arBusy)return;const c=CM.find(z=>z.mes==mes);if(!c||c.archivado)return;const h=c.hasta,tf=new Date(h+"T23:59:59").getTime();
+ if(!dl)return say("Aquí no se pueden descargar archivos: abre la app desde el navegador para archivar");
+ try{await backup()}catch(e){return say("No se archivó nada: primero hay que guardar el respaldo")}
+ const nu=a=>a.reduce((s,x)=>Math.max(s,parseInt(String(x.nro||x.id||"").replace(/\D/g,""))||0),0),uo=Math.max(c.ultOrden||0,O.reduce((s,x)=>Math.max(s,parseInt(String(x.id).replace(/\D/g,""))||0),0)),ua=Math.max(c.ultAd||0,nu(AV));
+ const lp=x=>x.estado=="anulado"||LQ.some(q=>key(q.empleado)==key(x.empleado)&&q.mes==mesDe(x.fecha)&&q.estado=="pagada");
+ const oa=O.filter(x=>(x.fecha||"")<=h&&(x.estado=="cancelada"||x.estado=="anulada")&&!P.some(p=>p.orden==x.id&&p.estado!="anulado"&&(p.fecha>h||p.estado=="emitido"))),os=new Set(oa.map(x=>x.id)),sinO=id=>!id||os.has(id)||!O.some(o=>o.id==id);
+ const G=[["pagos",col,P.filter(x=>x.fecha<=h&&x.estado!="emitido"&&sinO(x.orden)&&!(x.medio=="Cheque"&&x.estado=="cobrado"&&!x.cobroEgreso&&(x.cobradoFecha||x.venc||x.fecha)>h))],
+  ["boletas",colB,B.filter(x=>x.fecha<=h&&(x.estado=="anulada"||(x.estado=="pagada"&&sinO(x.orden))))],["ordenes",colO,oa],
+  ["ingresos",colI,I.filter(x=>x.fecha<=h)],["egresos",colE,E.filter(x=>x.fecha<=h)],["cajas",colCJ,CJ.filter(x=>x.fecha<=h)],["retcaja",colRC,RC.filter(x=>x.fecha<=h)],
+  ["tarjetas",colT,T.filter(x=>x.fecha<=h&&x.estado!="pendiente")],["notas",colNC,NC.filter(x=>x.fecha<=h&&x.estado!="disponible"&&sinO(x.orden))],
+  ["retiros",colRT,RT.filter(x=>x.fecha<=h&&lp(x))],["adelantos",colAV,AV.filter(x=>x.fecha<=h&&lp(x))],["descuentos",colDS,DS.filter(x=>x.fecha<=h&&lp(x))],["liquidaciones",colLQ,LQ.filter(x=>x.mes<=mes&&x.estado!="pendiente")],
+  ["traslados",colTR,TR.filter(x=>x.fecha<=h&&(x.estado=="anulado"||x.estado=="entregado"||(x.estado=="recibido"&&(x.coincide||x.revisado))))],["movint",colMI,MI.filter(x=>x.fecha<=h)],["ventasrub",colVR,VR.filter(x=>x.hasta<=h)],["socmov",colSM,SM.filter(x=>x.fecha<=h)],["mermas",colMM,MM.filter(x=>x.fecha<=h&&x.estado!="pendiente")],["controles",colK,K.filter(x=>x.fecha<=h)],["historial",colH,H.filter(x=>x.creado<=tf)]];
+ const tot=G.reduce((s,g)=>s+g[2].length,0);let n=0;arBusy="Archivando… 0 de "+tot;render();
+ try{for(const [nm,ref,rows] of G)for(let i=0;i<rows.length;i+=250){const chk=rows.slice(i,i+250);
+   await colAR.add({mes,col:nm,parte:i/250,filas:chk.map(x=>{const y={...x};delete y.items;return y}),creado:Date.now()});
+   for(const x of chk){await ref.doc(x.id).delete();n++;if(n%20==0){arBusy="Archivando… "+n+" de "+tot;render()}}}
+  await colCM.doc(mes).update({archivado:true,archivadoEl:Date.now(),ultOrden:uo,ultAd:ua,ultTr:Math.max(c.ultTr||0,nu(TR))});arBusy="";await log("Archivó el mes",mesTx(mes)+" · "+n+" registros");say("Mes archivado ✔ "+n+" registros pasaron al archivo")}
+ catch(e){arBusy="";say("El archivo se interrumpió ("+((e&&(e.message||e.code))||e)+"). Vuelve a tocar Archivar para terminar")}}
+async function verArchivo(){
+ const ar=CM.filter(c=>c.archivado).sort((a,b)=>b.mes.localeCompare(a.mes)),m=ar.some(c=>c.mes==keep.arm)?keep.arm:(ar[0]||{}).mes,cn=(ARC.find(a=>a[1]==keep.arc)||ARC[0])[0];if(!m)return;
+ const s=await colAR.where("mes","==",m).where("col","==",cn).get();arRows=s.docs.flatMap(d=>d.data().filas||[]);render()}
+function vGas(){
+ const rec=E.slice(0,20).map(x=>`<div class="row ${x.estado=="anulado"?"an":""}">${esc(x.fecha)} · ${esc(x.tipo)} · sale de ${esc(x.fuente)} · ${esc(x.sucursal)}<br><b>$ ${money(x.monto)}</b> ${esc(x.detalle||"")}${x.estado!="anulado"?` <button class="lk" data-a="eanular" data-id="${x.id}">Anular</button>`:""}${mot(x)}</div>`).join("")||'<p class="mu">Todavía no hay gastos.</p>';
+ return vSaldos()+`<div class="card"><h3>Gastos y débitos</h3><p class="mu">Todo lo que sale sin boleta de proveedor: sueldos, servicios, impuestos, cuotas y débitos del banco.</p>
+<label>Fecha<input id="ef" type="date" value="${today()}"></label><label>Tipo<select id="et">${opts(TG)}</select></label>
+<label>Sale de<select id="eu">${opts(["Efectivo"].concat(CTAS))}</select></label><label>Sucursal<select id="es">${opts(SUC.concat(["General"]))}</select></label>
+<label>Monto<input id="em2" type="number" step="0.01" inputmode="decimal"></label><label>Detalle<input id="ed"></label>
+<button class="pri" data-a="esave">Guardar gasto</button><div class="fl">${esc(flash)}</div></div>${vSoc()}${vFijos()}<div class="card"><h3>Últimos gastos</h3>${rec}</div>`}
+async function esave(){
+ const g=i=>(document.getElementById(i)||{value:""}).value.trim(),m=parseFloat(g("em2")),fu=g("eu"),S=saldos();
+ if(!(m>0))return say("Falta el monto");
+ if(cerrado(g("ef")))return say(MC);
+ if(m>(S[fu]||0)+0.005&&ovr!="e"+fu+m){ovr="e"+fu+m;return say("⚠ Supera el saldo de "+fu+" ($ "+money(S[fu]||0)+"). Toca Guardar otra vez para confirmar")}
+ ovr="";await colE.add({fecha:g("ef"),tipo:g("et"),fuente:fu,sucursal:g("es"),monto:m,detalle:g("ed"),estado:"ok",por:uid,creado:Date.now()});
+ ["em2","ed"].forEach(k=>delete keep[k]);await log("Cargó gasto",g("et")+" $ "+money(m)+" · sale de "+fu);say("Gasto guardado ✔")}
+function applyCfg(){const c=CFG||{};
+ if(Array.isArray(c.cuentas)&&c.cuentas.length){CTAS=c.cuentas.slice();BCOS=CTAS.filter(x=>x!="Mercado Pago").concat(["Otro"]);DON=DON.slice(0,2).concat(CTAS.map(x=>"Transferencia a "+x))}
+ if(Array.isArray(c.socios)&&c.socios.length)SOC=c.socios.map(s=>[s.n,Number(s.p)||0]);
+ if(c.cajas>0)CAJAS=Array.from({length:Math.min(30,c.cajas)},(_,i)=>"Caja "+(i+1));
+ if(Array.isArray(c.turnos)&&c.turnos.length)TURNOS=c.turnos.slice();
+ if(Array.isArray(c.rubros)&&c.rubros.length)RUB=c.rubros.slice();
+ if(c.pctEmp!=null&&c.pctEmp>=0)PCT=Number(c.pctEmp);if(c.umbCaja!=null&&c.umbCaja>=0)UMB=Number(c.umbCaja);if(c.tkMax>=1)TKMAX=parseInt(c.tkMax)}
+const cfgBase=()=>{const o={...(CFG||{})};delete o.id;return o};
+const COLS=["pagos","boletas","ordenes","ingresos","tarjetas","egresos","controles","personas","cortes","usuarios","historial","notas","proveedores","pagos_espera","retiros","adelantos","liquidaciones","rangos","socios","cierresmes","retcaja","descuentos","fijos","cajas","archivo","mermas","envases","precios","fiados","empcfg","novedades","respaldos","socmov","traslados","ventasrub","movint","diarco"];
+async function reiniciar(){
+ if(!ownerC||arBusy||!DBR)return;let n=0;arBusy="Borrando… no cierres la app";render();try{await colCfg.doc("diarco").set({saldo:0})}catch(e){}
+ try{for(const c of COLS){const ref=DBR.collection(c);for(let v=0;v<60;v++){const s=await ref.limit(500).get();if(!s.docs.length)break;for(const d of s.docs){await ref.doc(d.id).delete();n++;if(n%25==0){arBusy="Borrando… "+n+" registros";render()}}}}
+  let f=0;if(assets){try{const r=await assets.list();for(const a of (r.assets||[])){try{await assets.delete(a.id);f++}catch(e){}}}catch(e){}}
+  arBusy="";cur="";trI=[];trX=[];trR="";sel={};nsel={};acSel={};arRows=null;say("App reiniciada ✔ Se borraron "+n+" registros"+(f?" y "+f+" fotos":""))}
+ catch(e){arBusy="";say("El borrado se interrumpió ("+((e&&(e.message||e.code))||e)+"). Vuelve a tocar Reiniciar para terminar")}}
+function vReset(){return ownerC?`<div class="card"><h3>Reiniciar la app</h3><p class="mu">Borra todo lo cargado para empezar de cero: sirve para limpiar las pruebas antes de usarla en serio. Se mantienen los usuarios con sus rangos y la configuración del negocio. Si hay algo que quieras conservar, descarga antes el respaldo en Informes.</p>${arBusy?`<p class="fl">${esc(arBusy)}</p>`:'<button class="pri" data-a="reset">Borrar todos los datos y empezar de cero</button>'}<div class="fl">${esc(flash)}</div></div>`:""}
+function vCfg(){if(!esDueno)return"";const t=(id,l,v)=>`<label>${l}<input id="${id}" value="${esc(v)}"></label>`,co=n=>String(n).replace(".",",");
+ return `<div class="card"><h3>Configuración del negocio</h3><p class="mu">Estos datos los usa toda la app. Los cambios valen de ahora en adelante; lo que ya está cargado no se modifica.</p>
+${t("cfs","Dueños y porcentaje semanal de cada uno (nombre: porcentaje; separados por punto y coma)",SOC.map(s=>s[0]+": "+co(s[1])).join("; "))}
+${t("cfp","Descuento a los empleados sobre la mercadería que retiran (%)",co(PCT))}
+${t("cfu","Tolerancia de las cajas: hasta este desfasaje es solo aviso y no se le carga al cajero ($)",co(UMB))}${t("cfk","Máximo de tickets por día que un cajero puede cargarle a un mismo empleado",TKMAX)}
+${t("cfc","Cantidad de cajas por sucursal",CAJAS.length)}${t("cft","Turnos (separados por coma)",TURNOS.join(", "))}
+${t("cfa","Cuentas del negocio, sin contar el efectivo (separadas por coma)",CTAS.join(", "))}${t("cfr","Rubros de mercadería (separados por coma)",RUB.join(", "))}
+<button class="pri" data-a="cfsave">Guardar configuración</button><div class="fl">${esc(flash)}</div></div>`}
+async function cfsave(){if(!esDueno)return;const g=i=>(document.getElementById(i)||{value:""}).value.trim(),li=s=>[...new Set(s.split(",").map(x=>x.trim().replace(/\s+/g," ")).filter(Boolean))],nn=s=>parseFloat(String(s).replace(",","."));
+ const so=g("cfs").split(";").map(x=>x.trim()).filter(Boolean).map(x=>{const i=x.lastIndexOf(":");return{n:(i<0?x:x.slice(0,i)).trim(),p:i<0?NaN:nn(x.slice(i+1))}});
+ if(!so.length||so.some(s=>!s.n||!(s.p>=0)))return say("Revisa los dueños: cada uno va como nombre: porcentaje, separados por punto y coma");
+ const pc=nn(g("cfp")),cj=parseInt(g("cfc")),tu=li(g("cft")),cu=li(g("cfa")),ru=li(g("cfr")),S=saldos();
+ if(!(pc>=0&&pc<=100))return say("El descuento a empleados tiene que ser un porcentaje entre 0 y 100");if(!(cj>=1&&cj<=30))return say("La cantidad de cajas tiene que estar entre 1 y 30");
+ const um=nn(g("cfu")),tk=parseInt(g("cfk"));if(!(um>=0))return say("La tolerancia de las cajas tiene que ser un importe (0 o más)");if(!(tk>=1&&tk<=20))return say("El máximo de tickets por día tiene que estar entre 1 y 20");
+ if(!tu.length||!cu.length||!ru.length)return say("Turnos, cuentas y rubros tienen que tener al menos un valor");
+ const qu=CTAS.filter(c=>!cu.includes(c)).find(c=>Math.abs(S[c]||0)>=0.01||T.some(t=>t.estado=="pendiente"&&t.cuenta==c)||P.some(x=>x.estado=="emitido"&&x.banco==c));
+ if(qu)return say("No se puede quitar la cuenta "+qu+": todavía tiene saldo, tarjetas por acreditar o cheques sin cobrar");
+ await colCfg.doc("general").set({...cfgBase(),socios:so,pctEmp:pc,umbCaja:um,tkMax:tk,cajas:cj,turnos:tu,cuentas:cu,rubros:ru,por:uid,creado:Date.now()});
+ ["cfs","cfp","cfc","cft","cfa","cfr","cfu","cfk"].forEach(k=>delete keep[k]);await log("Cambió la configuración del negocio",so.map(s=>s.n+" "+s.p+" %").join(", ")+" · "+cj+" cajas · "+cu.length+" cuentas");say("Configuración guardada ✔")}
