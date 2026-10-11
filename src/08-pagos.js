@@ -11,7 +11,7 @@ async function libroCsv(){
  const q=v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"',n=v=>String(Number(v||0).toFixed(2)).replace(".",","),H=["Fecha","Tipo de comprobante","Número","Proveedor","CUIT","Neto gravado","IVA","Percepciones y otros","Total","Sucursal","Rubro"];
  const csv="\ufeff"+[H.map(q).join(";")].concat(L.map(b=>[fmt(b.fecha),b.tipoC||"",b.nro,b.proveedor,b.cuit||(fichaDe(b.proveedor)||{}).cuit||"",n(b.neto),n(b.iva),n(b.perc),n(b.monto),b.sucursal,b.rubro||""].map(q).join(";"))).join("\r\n");
  try{await dl.save({filename:"libro_compras_"+m+".csv",data:csv});say("Libro de compras descargado ✔ ("+L.length+" comprobantes)")}catch(e){if(e&&e.code!="declined")say("No se pudo descargar ("+((e&&e.code)||"error")+")")}}
-function resumenDatos(d1,d2){
+function resumenDatos(d1,d2){cjNeed(d1,d2);
  const pe=n=>"$ "+money(n),en=x=>x.fecha>=d1&&x.fecha<=d2,S=[],sum=(a,f)=>a.reduce((s,x)=>s+(f?f(x):x.monto),0);
  const Rp=P.filter(x=>x.estado!="anulado"&&en(x)),ps={};Rp.forEach(x=>{ps[x.sucursal]=(ps[x.sucursal]||0)+x.monto});
  S.push({t:"Pagos a proveedores",filas:MED.map(m=>["Con "+m.toLowerCase(),pe(sum(Rp.filter(x=>x.medio==m)))]).concat(Object.keys(ps).sort().map(k=>["Boletas de "+k,pe(ps[k])]),[["Total pagado",pe(sum(Rp)),1]])});

@@ -116,7 +116,7 @@ function armarTraslado(J,t,hoy,cuandoF){
  y+=22;doc.setDrawColor(0);doc.line(L,y,L+55,y);doc.line(L+63,y,L+123,y);doc.line(L+131,y,R,y);y+=3.8;F(0,8);tx("Firma de quien preparó",L);tx("Firma de quien llevó",L+63);tx("Firma de quien recibió",L+131);
  return doc}
 /*CORTE*/
-function resultado(d1,d2){
+function resultado(d1,d2){cjNeed(d1,d2);
  const en=x=>x.fecha>=d1&&x.fecha<=d2,cols=SUC.concat(["General"]),z=()=>{const o={};cols.forEach(c=>o[c]=0);return o},R={ventas:z(),compras:z(),gastos:z(),mermas:z(),consumo:z(),dif:z()},cc=s=>SUC.includes(s)?s:"General";
  CJ.filter(x=>x.estado!="anulado"&&en(x)).forEach(x=>{R.ventas[cc(x.sucursal)]+=x.ventas||0;if(x.dif!=null)R.dif[cc(x.sucursal)]+=x.dif});
  B.filter(b=>b.estado!="anulada"&&b.estado!="por autorizar"&&en(b)).forEach(b=>R.compras[cc(b.sucursal)]+=b.monto);

@@ -45,7 +45,7 @@ async function evsave(){const g=i=>(document.getElementById(i)||{value:""}).valu
 const SEN=["Deja efectivo y recibe una transferencia del negocio","Hace una transferencia al negocio y se lleva efectivo"];
 let SOC=[["Ignacio",1.5],["Luciano",1.5]],DM=["No descontar la mercadería retirada","Descontar la mercadería retirada"];
 function semPago(){const t0=today(),ws=(new Date(t0+"T12:00:00").getDay()+1)%7,sat=addDays(t0,-ws);return{sat,d1:addDays(sat,-12),d2:addDays(sat,-6)}}
-const ventaSem=(d1,d2)=>r2(CJ.filter(x=>x.estado!="anulado"&&x.fecha>=d1&&x.fecha<=d2).reduce((s,x)=>s+(x.ventas||0),0));
+const ventaSem=(d1,d2)=>(cjNeed(d1,d2),0)||r2(CJ.filter(x=>x.estado!="anulado"&&x.fecha>=d1&&x.fecha<=d2).reduce((s,x)=>s+(x.ventas||0),0));
 const pagoSoc=(n,d1)=>SM.find(x=>x.tipo=="retiro"&&x.estado!="anulado"&&key(x.socio)==key(n)&&x.desde==d1);
 const tkPend=n=>SM.filter(x=>x.tipo=="ticket"&&x.estado!="anulado"&&!x.descontadoEn&&key(x.socio)==key(n));
 function socCalc(){
