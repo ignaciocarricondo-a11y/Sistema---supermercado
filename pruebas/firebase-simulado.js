@@ -4,7 +4,7 @@ let D=LS("fsdb")||{},subs=[];const save=()=>{SV("fsdb",D);subs.forEach(f=>f())};
 const A=()=>LS("fsu"),U=()=>{const a=A();return a?a.email.split("@")[0]:""},yo=()=>(D.cuentas||{})[U()]||null;
 const principal=()=>!!A()&&!!(D.config&&D.config.dueno)&&D.config.dueno.uid==A().uid,activo=()=>{const m=yo();return !!A()&&!!m&&m.estado=="ok"&&m.rango!=""};
 const dueno=()=>principal()||(activo()&&yo().rango=="Dueño"),tiene=l=>activo()&&Object.keys(yo().permisos||{}).some(k=>l.includes(k));
-const fin=()=>dueno()||tiene(['hoy','bus','bol','reg','ing','gas','cli','emp','ctl','chq','sem','cajctl']),caja=()=>tiene(['caj']),depo=()=>tiene(['tra','mer']),mio=()=>"a_"+U();
+const fin=()=>dueno()||tiene(['hoy','bus','reg','ing','gas','cli','emp','ctl','chq','sem','cajctl']),caja=()=>tiene(['caj']),bole=()=>tiene(['bol']),depo=()=>tiene(['tra','mer']),mio=()=>"a_"+U();
 function can(op,c,id,data,old,fs){ // op: get|list|create|update|delete
  const rd=op=="get"||op=="list";
  if(c=="config"){if(id=="dueno")return op=="get"?!!A():op=="create"?!!A()&&data.uid==A().uid:(rd&&(activo()||dueno()));if(rd)return activo()||dueno();return fin()||(id=="diarco"&&caja())}
@@ -16,6 +16,8 @@ function can(op,c,id,data,old,fs){ // op: get|list|create|update|delete
  if(rd&&['traslados','mermas','envases','proveedores','personas','cierresmes'].includes(c)&&depo())return true;
  if((op=="create"||op=="update")&&['traslados','mermas','envases'].includes(c)&&depo())return true;
  if(op=="create"&&c=="historial"&&activo()&&data.por==mio())return true;
+ if(c=="proveedores"&&bole()){if(rd)return true;if(op=="create")return data.por==mio();if(op=="update")return Object.keys({...data,...old}).every(k=>data[k]===old[k]||k=="rubro"||k=="cuit")}
+ if(c=="boletas"&&bole()){if(op=="get")return !!old&&old.por==mio();if(op=="list")return (fs||[]).some(([f,o,v])=>f=="por"&&o=="=="&&v==mio());if(op=="create")return data.por==mio()&&data.estado=="por revisar"}
  if(rd&&['retiros','adelantos','liquidaciones','descuentos','novedades'].includes(c)&&activo()){const m=yo();if(op=="get")return old&&(old.empleado==m.nombre||old.empleado==m.empleado);return (fs||[]).some(([f,o,v])=>f=="empleado"&&o=="=="&&(v==m.nombre||v==m.empleado))}
  return false}
 const deny=(op,c,id)=>{window.__denied.push(op+" "+c+(id?"/"+id:""));return Object.assign(new Error("Missing or insufficient permissions."),{code:"permission-denied"})};

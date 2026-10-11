@@ -61,7 +61,7 @@ async function bsave(){
   else d.estado="por autorizar"}
  if(bolSolo()){d.estado="por revisar";delete d.autorizada;ovr=""}
  if(bfoto){if(assets){try{d.foto=(await assets.upload(await shrink(bfoto))).id}catch(e){sinFoto=true}}else sinFoto=true}
- if(bitems.length){try{d.subas=await precios(p,bitems,d.fecha)}catch(e){}}
+ if(bitems.length&&ROL.fin){try{d.subas=await precios(p,bitems,d.fecha)}catch(e){}}
  if(d.rubro){const fr=fichaDe(p);try{if(!fr)await colFP.add({clave:key(p),nombre:p,rubro:d.rubro,por:uid,creado:Date.now()});else if(!fr.rubro)await colFP.doc(fr.id).update({rubro:d.rubro})}catch(e){}}
  if(d.cuit){const fc=fichaDe(p);try{if(!fc)await colFP.add({clave:key(p),nombre:p,cuit:d.cuit,por:uid,creado:Date.now()});else if(!fc.cuit)await colFP.doc(fc.id).update({cuit:d.cuit})}catch(e){}}
  await colB.add(d);await log(d.estado=="por autorizar"?"Cargó boleta que espera autorización":d.autorizada?"Cargó y autorizó boleta con fecha anterior":"Cargó boleta",p+" N° "+nro+" $ "+money(monto));

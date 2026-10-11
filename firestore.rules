@@ -7,7 +7,8 @@ service cloud.firestore {
     function activo() { return request.auth != null && yo().estado == 'ok' && yo().rango != ''; }
     function dueno() { return principal() || (activo() && yo().rango == 'Dueño'); }
     function tiene(l) { return activo() && yo().permisos.keys().hasAny(l); }
-    function fin() { return dueno() || tiene(['hoy','bus','bol','reg','ing','gas','cli','emp','ctl','chq','sem','cajctl']); }
+    function fin() { return dueno() || tiene(['hoy','bus','reg','ing','gas','cli','emp','ctl','chq','sem','cajctl']); }
+    function bole() { return tiene(['bol']); }
     function caja() { return tiene(['caj']); }
     function depo() { return tiene(['tra','mer']); }
     function mio() { return 'a_' + u(); }
@@ -39,6 +40,11 @@ service cloud.firestore {
       allow read: if col in ['traslados','mermas','envases','proveedores','personas','cierresmes'] && depo();
       allow create, update: if col in ['traslados','mermas','envases'] && depo();
       allow create: if col == 'historial' && activo() && request.resource.data.por == mio();
+      allow read: if col == 'proveedores' && bole();
+      allow read: if col == 'boletas' && bole() && resource.data.por == mio();
+      allow create: if col == 'boletas' && bole() && request.resource.data.por == mio() && request.resource.data.estado == 'por revisar';
+      allow create: if col == 'proveedores' && bole() && request.resource.data.por == mio();
+      allow update: if col == 'proveedores' && bole() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rubro','cuit']);
       allow read: if col in ['retiros','adelantos','liquidaciones','descuentos','novedades'] && esMia();
     }
   }
