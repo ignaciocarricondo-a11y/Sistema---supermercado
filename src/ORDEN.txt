@@ -12,6 +12,7 @@
 10-clientes-mercaderia-duenos.js
 11-traslados.js
 12-rinde-hoy-gastos-configuracion.js
+12b-pagos-directos.js
 13-buscar-usuarios-empleados.js
 14-control-cheques-informes.js
 15-acciones.js

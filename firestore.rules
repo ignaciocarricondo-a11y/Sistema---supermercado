@@ -7,8 +7,9 @@ service cloud.firestore {
     function activo() { return request.auth != null && yo().estado == 'ok' && yo().rango != ''; }
     function dueno() { return principal() || (activo() && yo().rango == 'Dueño'); }
     function tiene(l) { return activo() && yo().permisos.keys().hasAny(l); }
-    function fin() { return dueno() || tiene(['hoy','bus','reg','ing','gas','cli','emp','ctl','chq','sem','cajctl']); }
+    function fin() { return dueno() || tiene(['hoy','pgc','bus','reg','ing','gas','cli','emp','ctl','chq','sem','cajctl']); }
     function bole() { return tiene(['bol']); }
+    function pagos() { return tiene(['pgd']); }
     function caja() { return tiene(['caj']); }
     function depo() { return tiene(['tra','mer']); }
     function mio() { return 'a_' + u(); }
@@ -45,6 +46,9 @@ service cloud.firestore {
       allow create: if col == 'boletas' && bole() && request.resource.data.por == mio() && request.resource.data.estado == 'por revisar';
       allow create: if col == 'proveedores' && bole() && request.resource.data.por == mio();
       allow update: if col == 'proveedores' && bole() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rubro','cuit']);
+      allow read: if col in ['pagosdir','pagosadj','pgefec'] && pagos();
+      allow create: if col in ['pagosadj','pgefec'] && pagos() && request.resource.data.por == mio();
+      allow create: if col == 'pagosdir' && pagos() && request.resource.data.por == mio() && request.resource.data.estado == 'ok' && !('revisado' in request.resource.data);
       allow read: if col in ['retiros','adelantos','liquidaciones','descuentos','novedades'] && esMia();
     }
   }

@@ -165,7 +165,7 @@ ${t("cfs","Dueños y porcentaje semanal de cada uno (nombre: porcentaje; separad
 ${t("cfp","Descuento a los empleados sobre la mercadería que retiran (%)",co(PCT))}
 ${t("cfu","Tolerancia de las cajas: hasta este desfasaje es solo aviso y no se le carga al cajero ($)",co(UMB))}${t("cfk","Máximo de tickets por día que un cajero puede cargarle a un mismo empleado",TKMAX)}
 ${t("cfc","Cantidad de cajas por sucursal",CAJAS.length)}${t("cft","Turnos (separados por coma)",TURNOS.join(", "))}
-${t("cfa","Cuentas del negocio, sin contar el efectivo (separadas por coma)",CTAS.join(", "))}${t("cfr","Rubros de mercadería (separados por coma)",RUB.join(", "))}
+<label>¿Para qué se usa la app?<select id="cfsp">${selO(["Todo el sistema","Solo pagos a proveedores"],SOLO()?"Solo pagos a proveedores":"Todo el sistema")}</select></label><p class="mu" style="margin-top:-4px">Con "Solo pagos" se esconden Cajas, Boletas, Ingresos, Gastos y lo demás: quedan Pagos, Control de pagos, Usuarios y Control. No se borra nada.</p>${t("cfpa","Pago grande: desde este importe se marca para revisar ($)",co(pgAlto()))}${t("cfa","Cuentas del negocio, sin contar el efectivo (separadas por coma)",CTAS.join(", "))}${t("cfr","Rubros de mercadería (separados por coma)",RUB.join(", "))}
 <button class="pri" data-a="cfsave">Guardar configuración</button><div class="fl">${esc(flash)}</div></div>`}
 async function cfsave(){if(!esDueno)return;const g=i=>(document.getElementById(i)||{value:""}).value.trim(),li=s=>[...new Set(s.split(",").map(x=>x.trim().replace(/\s+/g," ")).filter(Boolean))],nn=s=>parseFloat(String(s).replace(",","."));
  const so=g("cfs").split(";").map(x=>x.trim()).filter(Boolean).map(x=>{const i=x.lastIndexOf(":");return{n:(i<0?x:x.slice(0,i)).trim(),p:i<0?NaN:nn(x.slice(i+1))}});
@@ -176,5 +176,5 @@ async function cfsave(){if(!esDueno)return;const g=i=>(document.getElementById(i
  if(!tu.length||!cu.length||!ru.length)return say("Turnos, cuentas y rubros tienen que tener al menos un valor");
  const qu=CTAS.filter(c=>!cu.includes(c)).find(c=>Math.abs(S[c]||0)>=0.01||T.some(t=>t.estado=="pendiente"&&t.cuenta==c)||P.some(x=>x.estado=="emitido"&&x.banco==c));
  if(qu)return say("No se puede quitar la cuenta "+qu+": todavía tiene saldo, tarjetas por acreditar o cheques sin cobrar");
- await colCfg.doc("general").set({...cfgBase(),socios:so,pctEmp:pc,umbCaja:um,tkMax:tk,cajas:cj,turnos:tu,cuentas:cu,rubros:ru,por:uid,creado:Date.now()});
- ["cfs","cfp","cfc","cft","cfa","cfr","cfu","cfk"].forEach(k=>delete keep[k]);await log("Cambió la configuración del negocio",so.map(s=>s.n+" "+s.p+" %").join(", ")+" · "+cj+" cajas · "+cu.length+" cuentas");say("Configuración guardada ✔")}
+ await colCfg.doc("general").set({...cfgBase(),socios:so,pctEmp:pc,umbCaja:um,tkMax:tk,soloPagos:g("cfsp")=="Solo pagos a proveedores",pgAlto:nn(g("cfpa"))>0?nn(g("cfpa")):500000,cajas:cj,turnos:tu,cuentas:cu,rubros:ru,por:uid,creado:Date.now()});
+ ["cfs","cfp","cfc","cft","cfa","cfr","cfu","cfk","cfsp","cfpa"].forEach(k=>delete keep[k]);await log("Cambió la configuración del negocio",so.map(s=>s.n+" "+s.p+" %").join(", ")+" · "+cj+" cajas · "+cu.length+" cuentas");say("Configuración guardada ✔")}
